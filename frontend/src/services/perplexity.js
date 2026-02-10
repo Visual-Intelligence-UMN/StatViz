@@ -1,6 +1,4 @@
-// Perplexity API configuration
-const PERPLEXITY_API_KEY = import.meta.env.VITE_PERPLEXITY_API_KEY;
-const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions';
+import { PERPLEXITY_API_KEY, PERPLEXITY_API_URL } from '../constants/api';
 
 /**
  * Get an AI response from Perplexity Sonar formatted as bullet points
