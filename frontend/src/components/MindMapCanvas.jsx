@@ -15,7 +15,7 @@ import QueryNode from './QueryNode';
 import AnswerNode from './AnswerNode';
 import SourcesNode from './SourcesNode';
 import './MindMapCanvas.css';
-import { getAIResponse, expandBullet } from '../services/openai';
+import { getAIResponse, expandBullet, getBulletSources } from '../services/perplexity';
 
 // Register custom node types
 const nodeTypes = {
@@ -168,10 +168,81 @@ function MindMapCanvas() {
   }, [getNextId, setNodes, setEdges]);
 
   // Handle sources lookup
-  const handleSources = useCallback((nodeId, bulletIndex, bulletText) => {
-    console.log('Sources:', nodeId, bulletIndex, bulletText);
-    // TODO: Implement web search - creates sources node
-  }, []);
+  const handleSources = useCallback(async (nodeId, bulletIndex, bulletText) => {
+    const sourcesId = getNextId('sources');
+    
+    // Find the source node to position the sources node relative to it
+    setNodes((nds) => {
+      const sourceNode = nds.find((n) => n.id === nodeId);
+      if (!sourceNode) return nds;
+
+      // Calculate vertical position based on bullet index
+      const bulletOffsetY = bulletIndex * 40;
+
+      // Create a loading sources node positioned to the right, near the bullet point
+      const loadingNode = {
+        id: sourcesId,
+        type: 'sources',
+        position: {
+          x: sourceNode.position.x + 450,
+          y: sourceNode.position.y + bulletOffsetY,
+        },
+        data: {
+          label: 'Loading sources...',
+          sources: [],
+        },
+      };
+
+      return [...nds, loadingNode];
+    });
+
+    // Add edge from source answer to sources node
+    setEdges((eds) => [
+      ...eds,
+      {
+        id: `e-${nodeId}-${sourcesId}`,
+        source: nodeId,
+        sourceHandle: `bullet-${bulletIndex}`,
+        target: sourcesId,
+        style: { stroke: '#ff9800', strokeWidth: 2 },
+      },
+    ]);
+
+    // Fetch sources from Perplexity
+    try {
+      const sources = await getBulletSources(bulletText);
+      
+      // Update the node with the sources
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === sourcesId
+            ? {
+                ...node,
+                data: {
+                  sources,
+                },
+              }
+            : node
+        )
+      );
+    } catch (error) {
+      console.error('Error fetching sources:', error);
+      
+      // Update with error message
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === sourcesId
+            ? {
+                ...node,
+                data: {
+                  sources: [{ title: 'Error loading sources. Please try again.', url: '#' }],
+                },
+              }
+            : node
+        )
+      );
+    }
+  }, [getNextId, setNodes, setEdges]);
 
   // Handle custom query from bullet
   const handleCustomQuery = useCallback((nodeId, bulletIndex, bulletText) => {
