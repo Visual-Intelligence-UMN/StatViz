@@ -1,0 +1,124 @@
+/* ════════════════════════════════════════════
+   Data Mode — Shared Node Styles
+   All node components import this file.
+════════════════════════════════════════════ */
+
+.dm-node {
+    min-width: 200px;
+    max-width: 280px;
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background: #1a1a2e;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+    font-family: 'Inter', system-ui, sans-serif;
+    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+    overflow: hidden;
+}
+
+.dm-node--selected {
+    box-shadow: 0 0 0 2px white, 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+/* Header strip */
+.dm-node__header {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: white;
+}
+
+.dm-node__icon {
+    font-size: 14px;
+    line-height: 1;
+}
+
+/* Body */
+.dm-node__body {
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.dm-node__label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #e0e7ff;
+    line-height: 1.4;
+}
+
+.dm-node__meta {
+    font-size: 11px;
+    color: #6b7280;
+    line-height: 1.4;
+}
+
+/* Per-node accent colors */
+.dm-node--dataset {
+    border-color: #3b82f6;
+}
+
+.dm-node--dataset .dm-node__header {
+    background: #1d4ed8;
+}
+
+.dm-node--column {
+    border-color: #06b6d4;
+}
+
+.dm-node--column .dm-node__header {
+    background: #0e7490;
+}
+
+.dm-node--hypothesis {
+    border-color: #a855f7;
+}
+
+.dm-node--hypothesis .dm-node__header {
+    background: #7e22ce;
+}
+
+.dm-node--test {
+    border-color: #f59e0b;
+}
+
+.dm-node--test .dm-node__header {
+    background: #b45309;
+}
+
+.dm-node--result {
+    border-color: #10b981;
+}
+
+.dm-node--result .dm-node__header {
+    background: #065f46;
+}
+
+.dm-node--insight {
+    border-color: #6366f1;
+}
+
+.dm-node--insight .dm-node__header {
+    background: #4338ca;
+}
+
+.dm-node--interpretation {
+    border-color: #ec4899;
+}
+
+.dm-node--interpretation .dm-node__header {
+    background: #9d174d;
+}
+
+.dm-node--nextstep {
+    border-color: #f97316;
+}
+
+.dm-node--nextstep .dm-node__header {
+    background: #c2410c;
+}

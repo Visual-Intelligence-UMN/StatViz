@@ -1,0 +1,7 @@
+/* AppShell — full-screen container, no visual chrome of its own */
+.app-shell {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}

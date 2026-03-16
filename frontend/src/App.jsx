@@ -1,12 +1,8 @@
-import MindMapCanvas from './components/MindMapCanvas';
+import AppShell from './app/AppShell';
 import './App.css';
 
 function App() {
-  return (
-    <div className="app">
-      <MindMapCanvas />
-    </div>
-  );
+  return <AppShell />;
 }
 
 export default App;

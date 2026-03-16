@@ -1,0 +1,75 @@
+/* ─────────────────────────────────────────────
+   DataModeApp — dark indigo canvas for Data Mode
+───────────────────────────────────────────── */
+
+.data-mode-container {
+    width: 100%;
+    height: 100vh;
+    background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 100%);
+}
+
+/* Welcome placeholder node content */
+.data-welcome-label {
+    padding: 24px 28px;
+    text-align: center;
+    color: white;
+    user-select: none;
+}
+
+.data-welcome-icon {
+    font-size: 40px;
+    margin-bottom: 10px;
+}
+
+.data-welcome-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #e0e7ff;
+    margin-bottom: 6px;
+    letter-spacing: -0.3px;
+}
+
+.data-welcome-subtitle {
+    font-size: 13px;
+    color: #a5b4fc;
+    margin-bottom: 16px;
+    line-height: 1.5;
+}
+
+.data-welcome-status {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.12);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    border-radius: 6px;
+    padding: 4px 10px;
+    letter-spacing: 0.3px;
+}
+
+/* Override ReactFlow controls for dark theme */
+.data-mode-container .react-flow__controls {
+    background: rgba(30, 27, 75, 0.9);
+    border: 1px solid rgba(99, 102, 241, 0.4);
+    border-radius: 8px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+}
+
+.data-mode-container .react-flow__controls-button {
+    background: transparent;
+    border: none;
+    color: #a5b4fc;
+    fill: #a5b4fc;
+}
+
+.data-mode-container .react-flow__controls-button:hover {
+    background: rgba(99, 102, 241, 0.2);
+}
+
+.data-mode-container .react-flow__minimap {
+    border: 1px solid rgba(99, 102, 241, 0.4);
+    border-radius: 8px;
+    background: rgba(30, 27, 75, 0.9);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+}

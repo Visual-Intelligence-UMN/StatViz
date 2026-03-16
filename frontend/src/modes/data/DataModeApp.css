@@ -1,0 +1,203 @@
+/* ════════════════════════════════════════════
+   Data Mode — Shell Layout
+   Dark indigo design language
+════════════════════════════════════════════ */
+
+/* ── Root shell: full viewport, vertical flex ── */
+.dm-shell {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100vh;
+    background: #0f0f1a;
+    color: #e0e7ff;
+    font-family: 'Inter', system-ui, sans-serif;
+    overflow: hidden;
+}
+
+/* ════════════════════════════════════════════
+   Top Toolbar
+════════════════════════════════════════════ */
+.dm-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 52px;
+    padding: 0 20px;
+    background: #13131f;
+    border-bottom: 1px solid rgba(99, 102, 241, 0.25);
+    flex-shrink: 0;
+    z-index: 10;
+}
+
+.dm-toolbar__brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dm-toolbar__icon {
+    font-size: 18px;
+}
+
+.dm-toolbar__title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #c7d2fe;
+    letter-spacing: -0.2px;
+}
+
+.dm-toolbar__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dm-btn {
+    padding: 6px 14px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.dm-btn--ghost {
+    background: rgba(99, 102, 241, 0.12);
+    color: #a5b4fc;
+    border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.dm-btn--ghost:hover {
+    background: rgba(99, 102, 241, 0.22);
+    color: #e0e7ff;
+}
+
+.dm-btn--primary {
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    color: white;
+    box-shadow: 0 2px 10px rgba(99, 102, 241, 0.4);
+}
+
+.dm-btn--primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.5);
+}
+
+/* ════════════════════════════════════════════
+   Body Row  (sidebar + canvas + inspector)
+════════════════════════════════════════════ */
+.dm-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* ── Shared sidebar styles ── */
+.dm-sidebar,
+.dm-inspector {
+    width: 240px;
+    flex-shrink: 0;
+    background: #13131f;
+    border-color: rgba(99, 102, 241, 0.2);
+    border-style: solid;
+    border-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 16px 14px;
+    overflow-y: auto;
+}
+
+.dm-sidebar {
+    border-right-width: 1px;
+}
+
+.dm-inspector {
+    border-left-width: 1px;
+}
+
+.dm-sidebar__section-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #6366f1;
+    margin-bottom: 4px;
+    margin-top: 4px;
+}
+
+.dm-sidebar__empty {
+    font-size: 12px;
+    color: #4b5180;
+    font-style: italic;
+    padding: 6px 2px;
+}
+
+.dm-sidebar__divider {
+    height: 1px;
+    background: rgba(99, 102, 241, 0.15);
+    margin: 12px 0;
+}
+
+/* ── Center Canvas ── */
+.dm-canvas {
+    flex: 1;
+    position: relative;
+    background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 100%);
+    overflow: hidden;
+}
+
+/* Empty-state overlay (centered in canvas) */
+.dm-canvas__empty-state {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    gap: 8px;
+}
+
+.dm-canvas__empty-icon {
+    font-size: 48px;
+    opacity: 0.3;
+}
+
+.dm-canvas__empty-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #4b5180;
+}
+
+.dm-canvas__empty-sub {
+    font-size: 13px;
+    color: #353660;
+}
+
+/* ── ReactFlow control overrides for dark theme ── */
+.dm-canvas .react-flow__controls {
+    background: rgba(19, 19, 31, 0.95);
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    border-radius: 8px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+}
+
+.dm-canvas .react-flow__controls-button {
+    background: transparent;
+    border: none;
+    fill: #a5b4fc;
+}
+
+.dm-canvas .react-flow__controls-button:hover {
+    background: rgba(99, 102, 241, 0.2);
+}
+
+.dm-canvas .react-flow__minimap {
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    border-radius: 8px;
+    background: rgba(19, 19, 31, 0.95);
+}
