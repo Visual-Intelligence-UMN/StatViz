@@ -1,90 +1,79 @@
 /* ─────────────────────────────────────────────
-   ModeSwitcher — floating pill toggle, top-left
-   Positioned absolutely so it always overlays
-   whatever canvas is currently rendered.
+   ModeSwitcher — toggle switch, fixed top-center
 ───────────────────────────────────────────── */
 
-.mode-switcher {
+.mode-toggle {
     position: fixed;
-    top: 16px;
+    top: 14px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 9999;
 
     display: flex;
-    flex-direction: row;
-    gap: 4px;
     align-items: center;
+    gap: 10px;
 
-    background: rgba(255, 255, 255, 0.92);
+    background: rgba(255, 255, 255, 0.08);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    border-radius: 12px;
-    padding: 5px 6px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 99px;
+    padding: 5px 14px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
 }
 
-/* Individual mode button */
-.mode-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 14px;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    background: transparent;
-    color: #64748b;
-    font-size: 13px;
+/* Labels on either side */
+.mode-toggle__label {
+    font-size: 12px;
     font-weight: 500;
     font-family: inherit;
-    line-height: 1;
-    transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+    color: rgba(255, 255, 255, 0.35);
+    cursor: pointer;
+    transition: color 0.2s ease;
+    user-select: none;
     white-space: nowrap;
 }
 
-.mode-btn:hover:not(.mode-btn--active) {
-    background: rgba(0, 0, 0, 0.05);
-    color: #1e293b;
+.mode-toggle__label--active {
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 600;
 }
 
-/* Active state — changes color per mode */
-.mode-btn--active {
-    font-weight: 700;
-    color: white;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+/* Track */
+.mode-toggle__track {
+    position: relative;
+    width: 42px;
+    height: 22px;
+    border-radius: 99px;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    transition: background 0.25s ease;
+    flex-shrink: 0;
 }
 
-/* Q&A mode → green accent */
-.mode-btn--active:first-child {
-    background: linear-gradient(135deg, #4caf50 0%, #43a047 100%);
+.mode-toggle__track--qa {
+    background: linear-gradient(135deg, #4caf50, #43a047);
 }
 
-/* Data mode → indigo accent */
-.mode-btn--active:last-child {
-    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+.mode-toggle__track--data {
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
 }
 
-.mode-btn__icon {
-    font-size: 15px;
-    line-height: 1;
+/* Knob */
+.mode-toggle__knob {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: white;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+    transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
 }
 
-.mode-btn__label {
-    font-size: 13px;
-}
-
-/* ─────────────────────────────────────────────
-   Responsive: hide label on very small screens
-───────────────────────────────────────────── */
-@media (max-width: 480px) {
-    .mode-btn__label {
-        display: none;
-    }
-
-    .mode-btn {
-        padding: 7px 10px;
-    }
+.mode-toggle__knob--data {
+    transform: translateX(20px);
 }

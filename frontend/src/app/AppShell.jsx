@@ -18,16 +18,18 @@ import './AppShell.css';
  * No logic or node components are shared between Q&A and Data Mode.
  */
 function AppShell() {
-    const [mode, setMode] = useState('qa');
+    const [mode, setMode] = useState('data');
 
     return (
         <div className="app-shell">
-            {/* Global mode switcher — always visible */}
-            <ModeSwitcher currentMode={mode} onModeChange={setMode} />
+            {/* Global mode switcher */}
+            {/* <ModeSwitcher currentMode={mode} onModeChange={setMode} /> */}
 
             {/* Mode renders — only one is mounted at a time */}
-            {mode === 'qa' && <QAModeApp />}
-            {mode === 'data' && <DataModeApp />}
+            {/* {mode === 'qa' && <QAModeApp />}
+            {mode === 'data' && <DataModeApp />} */}
+
+            <DataModeApp />
         </div>
     );
 }

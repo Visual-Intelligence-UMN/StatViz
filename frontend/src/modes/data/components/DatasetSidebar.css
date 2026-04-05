@@ -17,7 +17,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1px;
-    color: #6366f1;
+    color: var(--dm-section-label);
     margin-top: 4px;
 }
 
@@ -25,10 +25,10 @@
 .dsb__upload-btn {
     width: 100%;
     padding: 8px 12px;
-    background: rgba(99, 102, 241, 0.12);
-    border: 1.5px dashed rgba(99, 102, 241, 0.5);
+    background: var(--dm-accent-dim);
+    border: 1.5px dashed var(--dm-accent-mid);
     border-radius: 8px;
-    color: #a5b4fc;
+    color: var(--dm-accent);
     font-size: 13px;
     font-weight: 600;
     font-family: inherit;
@@ -38,9 +38,9 @@
 }
 
 .dsb__upload-btn:hover:not(:disabled) {
-    background: rgba(99, 102, 241, 0.22);
-    border-color: #6366f1;
-    color: #e0e7ff;
+    background: var(--dm-accent-mid);
+    border-color: var(--dm-accent);
+    color: var(--dm-text-primary);
 }
 
 .dsb__upload-btn:disabled {
@@ -51,8 +51,8 @@
 /* Error */
 .dsb__error {
     font-size: 11px;
-    color: #f87171;
-    background: rgba(248, 113, 113, 0.1);
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.08);
     border-radius: 6px;
     padding: 6px 8px;
     line-height: 1.4;
@@ -60,8 +60,8 @@
 
 /* Dataset summary card */
 .dsb__summary {
-    background: rgba(99, 102, 241, 0.1);
-    border: 1px solid rgba(99, 102, 241, 0.25);
+    background: var(--dm-accent-dim);
+    border: 1px solid var(--dm-accent-mid);
     border-radius: 8px;
     padding: 10px;
     display: flex;
@@ -72,7 +72,7 @@
 .dsb__summary-name {
     font-size: 12px;
     font-weight: 600;
-    color: #c7d2fe;
+    color: var(--dm-dsb-summary-name);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -80,13 +80,13 @@
 
 .dsb__summary-meta {
     font-size: 11px;
-    color: #6b7497;
+    color: var(--dm-dsb-summary-meta);
 }
 
 /* Divider */
 .dsb__divider {
     height: 1px;
-    background: rgba(99, 102, 241, 0.15);
+    background: var(--dm-section-divider);
     margin: 6px 0;
 }
 
@@ -103,38 +103,86 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 6px;
     padding: 5px 8px;
     border-radius: 6px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(99, 102, 241, 0.1);
+    background: var(--dm-dsb-item-bg);
+    border: 1px solid var(--dm-dsb-item-border);
     transition: background 0.12s ease;
 }
 
 .dsb__col-item:hover {
-    background: rgba(99, 102, 241, 0.1);
+    background: var(--dm-dsb-item-hover);
 }
 
 .dsb__col-name {
     font-size: 12px;
-    color: #e0e7ff;
+    color: var(--dm-dsb-col-name);
     font-weight: 500;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 140px;
+    flex: 1;
+    min-width: 0;
 }
 
-.dsb__col-type {
-    font-size: 10px;
-    color: #4b5180;
-    font-style: italic;
+/* Stats group */
+.dsb__col-stats {
+    display: flex;
+    align-items: center;
+    gap: 4px;
     flex-shrink: 0;
+}
+
+/* Type badge */
+.dsb__col-type {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 2px 5px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.dsb__col-type--numeric {
+    background: rgba(16, 185, 129, 0.12);
+    color: #059669;
+    border: 1px solid rgba(16, 185, 129, 0.22);
+}
+
+.dsb__col-type--datetime {
+    background: rgba(245, 158, 11, 0.12);
+    color: #d97706;
+    border: 1px solid rgba(245, 158, 11, 0.22);
+}
+
+.dsb__col-type--categorical {
+    background: rgba(99, 102, 241, 0.12);
+    color: #6366f1;
+    border: 1px solid rgba(99, 102, 241, 0.22);
+}
+
+/* Null count */
+.dsb__col-null {
+    font-size: 9px;
+    color: var(--dm-dsb-col-null);
+    font-variant-numeric: tabular-nums;
+    cursor: default;
+}
+
+/* Unique count */
+.dsb__col-unique {
+    font-size: 9px;
+    color: var(--dm-dsb-col-unique);
+    font-variant-numeric: tabular-nums;
+    cursor: default;
 }
 
 /* Empty state */
 .dsb__empty {
     font-size: 12px;
-    color: #4b5180;
+    color: var(--dm-dsb-empty);
     font-style: italic;
     padding: 4px 2px;
 }

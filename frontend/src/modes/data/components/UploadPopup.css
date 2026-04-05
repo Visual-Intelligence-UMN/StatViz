@@ -1,0 +1,115 @@
+/* ════════════════════════════════════════════
+   UploadPopup — floating CSV upload card
+════════════════════════════════════════════ */
+
+/* Full-screen transparent backdrop to catch outside clicks */
+.upl-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    background: transparent;
+}
+
+/* Floating card */
+.upl-popup {
+    position: fixed;
+    z-index: 1000;
+    width: 272px;
+    background: var(--dm-bg-panel);
+    border: 1px solid var(--dm-border-panel);
+    border-radius: 14px;
+    padding: 16px;
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.14),
+        0 2px 8px  rgba(0, 0, 0, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    animation: upl-pop-in 0.15s ease;
+}
+
+@keyframes upl-pop-in {
+    from { opacity: 0; transform: scale(0.92) translateY(-6px); }
+    to   { opacity: 1; transform: scale(1)    translateY(0);    }
+}
+
+/* Header row */
+.upl-popup__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.upl-popup__title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--dm-text-primary);
+}
+
+.upl-popup__close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--dm-text-muted);
+    font-size: 12px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    line-height: 1;
+    transition: color 0.12s ease, background 0.12s ease;
+}
+
+.upl-popup__close:hover {
+    color: var(--dm-text-primary);
+    background: var(--dm-accent-dim);
+}
+
+/* Drop zone */
+.upl-popup__dropzone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 20px 16px;
+    border: 2px dashed var(--dm-border-panel);
+    border-radius: 10px;
+    cursor: pointer;
+    text-align: center;
+    transition: border-color 0.15s ease, background 0.15s ease;
+    background: transparent;
+    user-select: none;
+}
+
+.upl-popup__dropzone:hover,
+.upl-popup__dropzone--over {
+    border-color: #6366f1;
+    background: rgba(99, 102, 241, 0.06);
+}
+
+.upl-popup__dropzone--loading {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.upl-popup__drop-icon {
+    font-size: 22px;
+    line-height: 1;
+}
+
+.upl-popup__drop-text {
+    font-size: 12px;
+    color: var(--dm-text-muted);
+    line-height: 1.5;
+    white-space: pre-line;
+}
+
+/* Error */
+.upl-popup__error {
+    font-size: 11px;
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.18);
+    border-radius: 6px;
+    padding: 6px 8px;
+    line-height: 1.4;
+}

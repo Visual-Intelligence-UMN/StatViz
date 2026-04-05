@@ -1,49 +1,24 @@
 import { useRef, useState } from 'react';
 import useDataModeStore from '../store/useDataModeStore';
+import { parseCSV } from '../utils/csvParser';
 import './DatasetSidebar.css';
 
-/**
- * Parses the first line of a CSV file to extract column names.
- * Returns a promise resolving to an array of column name strings.
- */
-function parseCsvHeaders(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const text = e.target.result;
-            const firstLine = text.split('\n')[0] || '';
-            const headers = firstLine.split(',').map((h) => h.trim().replace(/^"|"$/g, ''));
-            resolve(headers);
-        };
-        reader.onerror = reject;
-        reader.readAsText(file);
-    });
-}
-
-/**
- * Counts the approximate number of data rows in a CSV string.
- */
-function countRows(file) {
-    return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const lines = e.target.result.split('\n').filter((l) => l.trim());
-            resolve(Math.max(0, lines.length - 1)); // subtract header row
-        };
-        reader.readAsText(file);
-    });
-}
+const TYPE_CLASS = {
+    numeric:     'numeric',
+    datetime:    'datetime',
+    categorical: 'categorical',
+};
 
 function DatasetSidebar() {
     const fileInputRef = useRef(null);
-    const [dataset, setDataset] = useState(null); // { name, rows, columns }
+    const [dataset, setDataset] = useState(null);
     const [columns, setColumns] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
+    const [error, setError]     = useState(null);
 
-    const addNode = useDataModeStore((s) => s.addNode);
-    const addEdge = useDataModeStore((s) => s.addEdge);
-    const setDataset_ = useDataModeStore((s) => s.setDataset);
+    const addNode    = useDataModeStore((s) => s.addNode);
+    const setDataset_= useDataModeStore((s) => s.setDataset);
+    const resetGraph = useDataModeStore((s) => s.resetGraph);
 
     const handleUpload = async (e) => {
         const file = e.target.files?.[0];
@@ -53,65 +28,31 @@ function DatasetSidebar() {
         setError(null);
 
         try {
-            const [headers, rowCount] = await Promise.all([
-                parseCsvHeaders(file),
-                countRows(file),
-            ]);
-
-            const meta = {
-                name: file.name,
-                rows: rowCount,
-                columns: headers.length,
-                source: 'Local upload',
-            };
-
-            const spec = {
-                columns: headers.map((h) => ({ name: h, type: 'unknown', nullCount: 0 })),
-            };
+            const { metadata, spec } = await parseCSV(file);
 
             // Update sidebar display state
-            setDataset(meta);
+            setDataset(metadata);
             setColumns(spec.columns);
 
-            // Update Zustand store
-            setDataset_({ metadata: meta, spec });
+            // Reset the canvas and load fresh dataset into the store
+            resetGraph();
+            setDataset_({ metadata, spec });
 
-            // ── Create Dataset node ──────────────────────────────
-            const datasetNodeId = `dataset-${Date.now()}`;
+            // ── One Dataset node on the canvas ────────────────────
             addNode({
-                id: datasetNodeId,
-                type: 'dataset',
-                position: { x: 400, y: 50 },
-                data: meta,
+                id:       `dataset-${Date.now()}`,
+                type:     'dataset',
+                position: { x: 400, y: 200 },
+                data:     metadata,
             });
 
-            // ── Create one Column node per header ────────────────
-            headers.forEach((colName, i) => {
-                const colId = `col-${Date.now()}-${i}`;
-                const spacing = 240;
-                const startX = 400 - ((headers.length - 1) * spacing) / 2;
-
-                addNode({
-                    id: colId,
-                    type: 'column',
-                    position: { x: startX + i * spacing, y: 230 },
-                    data: { name: colName, type: 'unknown', nullCount: 0 },
-                });
-
-                addEdge({
-                    id: `e-${datasetNodeId}-${colId}`,
-                    source: datasetNodeId,
-                    target: colId,
-                    style: { stroke: '#3b82f6', strokeWidth: 2 },
-                });
-            });
+            // Column details live in the sidebar only — no column nodes.
 
         } catch (err) {
             setError('Failed to parse CSV. Please check the file format.');
             console.error(err);
         } finally {
             setLoading(false);
-            // Reset file input so the same file can be re-uploaded
             if (fileInputRef.current) fileInputRef.current.value = '';
         }
     };
@@ -119,7 +60,7 @@ function DatasetSidebar() {
     return (
         <div className="dsb">
 
-            {/* ── Upload area ────────────────────────────────── */}
+            {/* ── Upload ───────────────────────────────────────── */}
             <div className="dsb__section-label">Dataset</div>
 
             <button
@@ -127,7 +68,7 @@ function DatasetSidebar() {
                 onClick={() => fileInputRef.current?.click()}
                 disabled={loading}
             >
-                {loading ? '⏳ Parsing…' : '⬆ Upload CSV'}
+                {loading ? 'Parsing...' : 'Upload CSV'}
             </button>
 
             <input
@@ -140,11 +81,11 @@ function DatasetSidebar() {
 
             {error && <div className="dsb__error">{error}</div>}
 
-            {/* ── Dataset summary ────────────────────────────── */}
+            {/* ── Dataset summary ──────────────────────────────── */}
             {dataset && (
                 <div className="dsb__summary">
                     <div className="dsb__summary-name" title={dataset.name}>
-                        📄 {dataset.name}
+                        {dataset.name}
                     </div>
                     <div className="dsb__summary-meta">
                         {dataset.rows.toLocaleString()} rows · {dataset.columns} columns
@@ -152,29 +93,33 @@ function DatasetSidebar() {
                 </div>
             )}
 
-            {/* ── Column list ────────────────────────────────── */}
-            {columns.length > 0 && (
-                <>
-                    <div className="dsb__divider" />
-                    <div className="dsb__section-label">Schema</div>
-                    <div className="dsb__col-list">
-                        {columns.map((col) => (
-                            <div key={col.name} className="dsb__col-item">
-                                <span className="dsb__col-name">{col.name}</span>
-                                <span className="dsb__col-type">{col.type}</span>
-                            </div>
-                        ))}
-                    </div>
-                </>
-            )}
+            {/* ── Schema ───────────────────────────────────────── */}
+            <div className="dsb__divider" />
+            <div className="dsb__section-label">Schema</div>
 
-            {/* ── Empty schema state ─────────────────────────── */}
-            {columns.length === 0 && !loading && (
-                <>
-                    <div className="dsb__divider" />
-                    <div className="dsb__section-label">Schema</div>
-                    <div className="dsb__empty">Upload a CSV to see columns</div>
-                </>
+            {columns.length > 0 ? (
+                <div className="dsb__col-list">
+                    {columns.map((col) => (
+                        <div key={col.name} className="dsb__col-item">
+                            <span className="dsb__col-name" title={col.name}>
+                                {col.name}
+                            </span>
+                            <div className="dsb__col-stats">
+                                <span className={`dsb__col-type dsb__col-type--${TYPE_CLASS[col.type] ?? 'categorical'}`}>
+                                    {col.type}
+                                </span>
+                                <span className="dsb__col-null" title="missing values">
+                                    {col.missing_count}↯
+                                </span>
+                                <span className="dsb__col-unique" title="unique values">
+                                    {col.unique_count}#
+                                </span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="dsb__empty">Upload a CSV to see schema</div>
             )}
 
         </div>

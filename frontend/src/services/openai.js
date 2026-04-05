@@ -1,8 +1,9 @@
 import OpenAI from 'openai';
+import { OPENAI_API_KEY } from '../constants/api';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENAI_API_KEY,
+  apiKey: OPENAI_API_KEY,
   dangerouslyAllowBrowser: true // Note: In production, API calls should go through a backend
 });
 

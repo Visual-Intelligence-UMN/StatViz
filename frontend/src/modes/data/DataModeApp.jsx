@@ -1,52 +1,116 @@
-import { useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import './DataModeApp.css';
 import DataCanvas from './components/DataCanvas';
-import DatasetSidebar from './components/DatasetSidebar';
+import UploadPopup from './components/UploadPopup';
 import useDataModeStore from './store/useDataModeStore';
+import { parseCSV } from './utils/csvParser';
 import { nodeTypes } from './nodes/index';
-import { mockNodes, mockEdges } from './utils/mockGraph';
 
 function DataModeApp() {
-    const setNodes = useDataModeStore((s) => s.setNodes);
-    const setEdges = useDataModeStore((s) => s.setEdges);
+    const [theme, setTheme]         = useState('light');
+    const [uploadPos, setUploadPos] = useState(null);
+    const [dragOver, setDragOver]   = useState(false);
 
-    // Seed the canvas with mock data when Data Mode first mounts
+    const datasetMetadata = useDataModeStore((s) => s.datasetMetadata);
+    const addNode         = useDataModeStore((s) => s.addNode);
+    const setDataset      = useDataModeStore((s) => s.setDataset);
+    const resetGraph      = useDataModeStore((s) => s.resetGraph);
+
     useEffect(() => {
-        setNodes(mockNodes);
-        setEdges(mockEdges);
+        document.documentElement.setAttribute('data-theme', theme);
+        return () => document.documentElement.removeAttribute('data-theme');
+    }, [theme]);
+
+    const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
+
+    // Click-to-upload popup (kept as-is)
+    const handlePaneClick = useCallback((event) => {
+        if (!datasetMetadata) setUploadPos({ x: event.clientX, y: event.clientY });
+    }, [datasetMetadata]);
+
+    // Direct drag-and-drop onto the canvas
+    const handleDragOver = useCallback((e) => {
+        e.preventDefault();
+        if (!datasetMetadata) setDragOver(true);
+    }, [datasetMetadata]);
+
+    const handleDragLeave = useCallback((e) => {
+        // Only clear when leaving the shell entirely
+        if (!e.currentTarget.contains(e.relatedTarget)) setDragOver(false);
     }, []);
 
-    return (
-        <div className="dm-shell">
+    const handleDrop = useCallback(async (e) => {
+        e.preventDefault();
+        setDragOver(false);
+        const file = e.dataTransfer.files?.[0];
+        if (!file) return;
+        try {
+            const { metadata, spec } = await parseCSV(file);
+            resetGraph();
+            setDataset({ metadata, spec });
+            addNode({
+                id:       `dataset-${Date.now()}`,
+                type:     'dataset',
+                position: { x: 400, y: 200 },
+                data:     metadata,
+            });
+        } catch (err) {
+            console.error('Drop parse error:', err);
+        }
+    }, [addNode, setDataset, resetGraph]);
 
-            {/* ── Top Toolbar ───────────────────────────────── */}
-            <header className="dm-toolbar">
-                <div className="dm-toolbar__brand">
-                    <span className="dm-toolbar__icon">📊</span>
-                    <span className="dm-toolbar__title">Data Mode</span>
-                </div>
-                <div className="dm-toolbar__actions">
-                    <button className="dm-btn dm-btn--ghost">+ Add Dataset</button>
-                    <button className="dm-btn dm-btn--ghost">+ Hypothesis</button>
-                    <button className="dm-btn dm-btn--primary">▶ Run Analysis</button>
-                </div>
-            </header>
+    return (
+        <div
+            className={`dm-shell ${dragOver ? 'dm-shell--drag-over' : ''}`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+        >
 
             {/* ── Body row ──────────────────────────────────── */}
             <div className="dm-body">
 
-                {/* Left Sidebar — Dataset / Schema */}
-                <aside className="dm-sidebar">
-                    <DatasetSidebar />
-                </aside>
-
                 {/* Center Canvas — React Flow */}
                 <main className="dm-canvas">
-                    <DataCanvas nodeTypes={nodeTypes} />
+                    <DataCanvas nodeTypes={nodeTypes} onPaneClick={handlePaneClick} />
+
+                    {/* Empty-state hint */}
+                    {!datasetMetadata && (
+                        <div className="dm-canvas__empty-state">
+                            <div className="dm-canvas__empty-title">
+                                {dragOver ? 'Drop to upload' : 'Drag & drop a CSV, or click anywhere to upload'}
+                            </div>
+                            {!dragOver && (
+                                <div className="dm-canvas__empty-sub">Your analysis graph will appear here</div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Full-canvas drag overlay */}
+                    {dragOver && !datasetMetadata && (
+                        <div className="dm-canvas__drag-overlay" />
+                    )}
                 </main>
 
                 {/* Right Panel — Inspector / Suggestions */}
                 <aside className="dm-inspector">
+
+                    {/* Dark mode toggle */}
+                    <div className="dm-theme-row">
+                        <span className="dm-theme-label">Dark Mode</span>
+                        <button
+                            className={`dm-theme-track ${theme === 'dark' ? 'dm-theme-track--on' : ''}`}
+                            onClick={toggleTheme}
+                            role="switch"
+                            aria-checked={theme === 'dark'}
+                            aria-label="Toggle dark mode"
+                        >
+                            <span className="dm-theme-knob" />
+                        </button>
+                    </div>
+
+                    <div className="dm-sidebar__divider" />
+
                     <div className="dm-sidebar__section-label">Inspector</div>
                     <div className="dm-sidebar__empty">Select a node to inspect</div>
 
@@ -57,6 +121,15 @@ function DataModeApp() {
                 </aside>
 
             </div>
+
+            {/* Upload popup (click path) */}
+            {uploadPos && (
+                <UploadPopup
+                    position={uploadPos}
+                    onClose={() => setUploadPos(null)}
+                />
+            )}
+
         </div>
     );
 }

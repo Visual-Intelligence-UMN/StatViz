@@ -1,16 +1,173 @@
 /* ════════════════════════════════════════════
-   Data Mode — Shell Layout
-   Dark indigo design language
+   Data Mode — CSS Variables (Light / Dark)
 ════════════════════════════════════════════ */
 
-/* ── Root shell: full viewport, vertical flex ── */
+:root {
+    /* Backgrounds */
+    --dm-bg-shell:          #f4f5fb;
+    --dm-bg-panel:          #ffffff;
+    --dm-bg-canvas-start:   #eef0f9;
+    --dm-bg-canvas-end:     #e8eaf5;
+    --dm-bg-node:           #ffffff;
+    --dm-node-shadow:       rgba(0, 0, 0, 0.08);
+
+    /* Text */
+    --dm-text-primary:      #1e293b;
+    --dm-text-secondary:    #475569;
+    --dm-text-muted:        #94a3b8;
+    --dm-text-faint:        #cbd5e1;
+    --dm-title-color:       #4338ca;
+
+    /* Accent (indigo) */
+    --dm-accent:            #6366f1;
+    --dm-accent-dim:        rgba(99, 102, 241, 0.1);
+    --dm-accent-mid:        rgba(99, 102, 241, 0.22);
+    --dm-accent-strong:     rgba(99, 102, 241, 0.45);
+
+    /* Borders */
+    --dm-border-panel:      rgba(99, 102, 241, 0.18);
+    --dm-border-subtle:     rgba(99, 102, 241, 0.12);
+
+    /* Node internals */
+    --dm-node-label:        #1e293b;
+    --dm-node-meta:         #64748b;
+    --dm-node-divider:      rgba(0, 0, 0, 0.06);
+    --dm-node-item-bg:      rgba(0, 0, 0, 0.025);
+    --dm-node-item-hover:   rgba(99, 102, 241, 0.08);
+
+    /* Summary node */
+    --dm-summary-header:    #e8eaf6;
+    --dm-summary-border:    #d1d5db;
+    --dm-summary-name:      #3730a3;
+    --dm-summary-meta:      #6366f1;
+
+    /* Hypothesis node */
+    --dm-hyp-statement:     #4338ca;
+    --dm-hyp-note:          #94a3b8;
+    --dm-hyp-test-text:     #64748b;
+    --dm-hyp-test-strong:   #374151;
+
+    /* Chips */
+    --dm-chip-bg:           rgba(100, 116, 139, 0.1);
+    --dm-chip-border:       rgba(100, 116, 139, 0.22);
+    --dm-chip-text:         #475569;
+
+    /* Scrollbar */
+    --dm-scrollbar-thumb:   #cbd5e1;
+
+    /* Ghost action button */
+    --dm-ghost-bg:          rgba(0, 0, 0, 0.03);
+    --dm-ghost-border:      rgba(0, 0, 0, 0.1);
+    --dm-ghost-text:        #64748b;
+
+    /* Empty states */
+    --dm-empty-title:       #94a3b8;
+    --dm-empty-sub:         #cbd5e1;
+
+    /* ReactFlow controls */
+    --dm-controls-bg:       rgba(255, 255, 255, 0.95);
+    --dm-controls-border:   rgba(99, 102, 241, 0.3);
+    --dm-controls-fill:     #6366f1;
+    --dm-minimap-bg:        rgba(255, 255, 255, 0.95);
+
+    /* Sidebar items */
+    --dm-dsb-item-bg:       rgba(0, 0, 0, 0.025);
+    --dm-dsb-item-border:   rgba(99, 102, 241, 0.1);
+    --dm-dsb-item-hover:    rgba(99, 102, 241, 0.08);
+    --dm-dsb-col-name:      #1e293b;
+    --dm-dsb-col-null:      #94a3b8;
+    --dm-dsb-col-unique:    #cbd5e1;
+    --dm-dsb-summary-name:  #3730a3;
+    --dm-dsb-summary-meta:  #64748b;
+    --dm-dsb-empty:         #94a3b8;
+
+    /* Section label */
+    --dm-section-label:     #6366f1;
+    --dm-section-divider:   rgba(99, 102, 241, 0.12);
+    --dm-section-empty:     #94a3b8;
+}
+
+:root[data-theme="dark"] {
+    --dm-bg-shell:          #0f0f1a;
+    --dm-bg-panel:          #13131f;
+    --dm-bg-canvas-start:   #0f0f1a;
+    --dm-bg-canvas-end:     #1a1a2e;
+    --dm-bg-node:           #1a1a2e;
+    --dm-node-shadow:       rgba(0, 0, 0, 0.4);
+
+    --dm-text-primary:      #e0e7ff;
+    --dm-text-secondary:    #6b7280;
+    --dm-text-muted:        #4b5180;
+    --dm-text-faint:        #353660;
+    --dm-title-color:       #c7d2fe;
+
+    --dm-accent-dim:        rgba(99, 102, 241, 0.12);
+    --dm-accent-mid:        rgba(99, 102, 241, 0.25);
+    --dm-accent-strong:     rgba(99, 102, 241, 0.45);
+
+    --dm-border-panel:      rgba(99, 102, 241, 0.2);
+    --dm-border-subtle:     rgba(99, 102, 241, 0.15);
+
+    --dm-node-label:        #e0e7ff;
+    --dm-node-meta:         #6b7280;
+    --dm-node-divider:      rgba(255, 255, 255, 0.06);
+    --dm-node-item-bg:      rgba(255, 255, 255, 0.02);
+    --dm-node-item-hover:   rgba(99, 102, 241, 0.1);
+
+    --dm-summary-header:    #1e2533;
+    --dm-summary-border:    #374151;
+    --dm-summary-name:      #c7d2fe;
+    --dm-summary-meta:      #6b7497;
+
+    --dm-hyp-statement:     #c4b5fd;
+    --dm-hyp-note:          #4b5563;
+    --dm-hyp-test-text:     #9ca3af;
+    --dm-hyp-test-strong:   #d1d5db;
+
+    --dm-chip-bg:           rgba(55, 65, 81, 0.5);
+    --dm-chip-border:       rgba(75, 85, 99, 0.35);
+    --dm-chip-text:         #9ca3af;
+
+    --dm-scrollbar-thumb:   #374151;
+
+    --dm-ghost-bg:          rgba(255, 255, 255, 0.04);
+    --dm-ghost-border:      rgba(255, 255, 255, 0.1);
+    --dm-ghost-text:        #6b7280;
+
+    --dm-empty-title:       #4b5180;
+    --dm-empty-sub:         #353660;
+
+    --dm-controls-bg:       rgba(19, 19, 31, 0.95);
+    --dm-controls-border:   rgba(99, 102, 241, 0.35);
+    --dm-controls-fill:     #a5b4fc;
+    --dm-minimap-bg:        rgba(19, 19, 31, 0.95);
+
+    --dm-dsb-item-bg:       rgba(255, 255, 255, 0.03);
+    --dm-dsb-item-border:   rgba(99, 102, 241, 0.1);
+    --dm-dsb-item-hover:    rgba(99, 102, 241, 0.1);
+    --dm-dsb-col-name:      #e0e7ff;
+    --dm-dsb-col-null:      #6b7280;
+    --dm-dsb-col-unique:    #4b5563;
+    --dm-dsb-summary-name:  #c7d2fe;
+    --dm-dsb-summary-meta:  #6b7497;
+    --dm-dsb-empty:         #4b5180;
+
+    --dm-section-label:     #6366f1;
+    --dm-section-divider:   rgba(99, 102, 241, 0.15);
+    --dm-section-empty:     #4b5180;
+}
+
+/* ════════════════════════════════════════════
+   Shell Layout
+════════════════════════════════════════════ */
+
 .dm-shell {
     display: flex;
     flex-direction: column;
     width: 100%;
     height: 100vh;
-    background: #0f0f1a;
-    color: #e0e7ff;
+    background: var(--dm-bg-shell);
+    color: var(--dm-text-primary);
     font-family: 'Inter', system-ui, sans-serif;
     overflow: hidden;
 }
@@ -24,8 +181,8 @@
     justify-content: space-between;
     height: 52px;
     padding: 0 20px;
-    background: #13131f;
-    border-bottom: 1px solid rgba(99, 102, 241, 0.25);
+    background: var(--dm-bg-panel);
+    border-bottom: 1px solid var(--dm-border-panel);
     flex-shrink: 0;
     z-index: 10;
 }
@@ -43,7 +200,7 @@
 .dm-toolbar__title {
     font-size: 15px;
     font-weight: 700;
-    color: #c7d2fe;
+    color: var(--dm-title-color);
     letter-spacing: -0.2px;
 }
 
@@ -65,14 +222,14 @@
 }
 
 .dm-btn--ghost {
-    background: rgba(99, 102, 241, 0.12);
-    color: #a5b4fc;
-    border: 1px solid rgba(99, 102, 241, 0.3);
+    background: var(--dm-accent-dim);
+    color: var(--dm-accent);
+    border: 1px solid var(--dm-border-panel);
 }
 
 .dm-btn--ghost:hover {
-    background: rgba(99, 102, 241, 0.22);
-    color: #e0e7ff;
+    background: var(--dm-accent-mid);
+    color: var(--dm-text-primary);
 }
 
 .dm-btn--primary {
@@ -87,7 +244,7 @@
 }
 
 /* ════════════════════════════════════════════
-   Body Row  (sidebar + canvas + inspector)
+   Body Row
 ════════════════════════════════════════════ */
 .dm-body {
     display: flex;
@@ -100,8 +257,8 @@
 .dm-inspector {
     width: 240px;
     flex-shrink: 0;
-    background: #13131f;
-    border-color: rgba(99, 102, 241, 0.2);
+    background: var(--dm-bg-panel);
+    border-color: var(--dm-border-panel);
     border-style: solid;
     border-width: 0;
     display: flex;
@@ -124,21 +281,21 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1px;
-    color: #6366f1;
+    color: var(--dm-section-label);
     margin-bottom: 4px;
     margin-top: 4px;
 }
 
 .dm-sidebar__empty {
     font-size: 12px;
-    color: #4b5180;
+    color: var(--dm-section-empty);
     font-style: italic;
     padding: 6px 2px;
 }
 
 .dm-sidebar__divider {
     height: 1px;
-    background: rgba(99, 102, 241, 0.15);
+    background: var(--dm-section-divider);
     margin: 12px 0;
 }
 
@@ -146,11 +303,11 @@
 .dm-canvas {
     flex: 1;
     position: relative;
-    background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 100%);
+    background: linear-gradient(135deg, var(--dm-bg-canvas-start) 0%, var(--dm-bg-canvas-end) 100%);
     overflow: hidden;
 }
 
-/* Empty-state overlay (centered in canvas) */
+/* Empty-state overlay */
 .dm-canvas__empty-state {
     position: absolute;
     inset: 0;
@@ -170,34 +327,96 @@
 .dm-canvas__empty-title {
     font-size: 16px;
     font-weight: 600;
-    color: #4b5180;
+    color: var(--dm-empty-title);
 }
 
 .dm-canvas__empty-sub {
     font-size: 13px;
-    color: #353660;
+    color: var(--dm-empty-sub);
 }
 
-/* ── ReactFlow control overrides for dark theme ── */
+/* Drag-over overlay */
+.dm-canvas__drag-overlay {
+    position: absolute;
+    inset: 0;
+    border: 3px dashed #6366f1;
+    border-radius: 10px;
+    background: rgba(99, 102, 241, 0.06);
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* ── ReactFlow control overrides ── */
 .dm-canvas .react-flow__controls {
-    background: rgba(19, 19, 31, 0.95);
-    border: 1px solid rgba(99, 102, 241, 0.35);
+    background: var(--dm-controls-bg);
+    border: 1px solid var(--dm-controls-border);
     border-radius: 8px;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 2px 12px var(--dm-node-shadow);
 }
 
 .dm-canvas .react-flow__controls-button {
     background: transparent;
     border: none;
-    fill: #a5b4fc;
+    fill: var(--dm-controls-fill);
 }
 
 .dm-canvas .react-flow__controls-button:hover {
-    background: rgba(99, 102, 241, 0.2);
+    background: var(--dm-accent-dim);
 }
 
 .dm-canvas .react-flow__minimap {
-    border: 1px solid rgba(99, 102, 241, 0.35);
+    border: 1px solid var(--dm-controls-border);
     border-radius: 8px;
-    background: rgba(19, 19, 31, 0.95);
+    background: var(--dm-minimap-bg);
+}
+
+/* ════════════════════════════════════════════
+   Dark Mode Toggle (in inspector)
+════════════════════════════════════════════ */
+.dm-theme-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 0;
+    margin-bottom: 4px;
+}
+
+.dm-theme-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--dm-text-secondary);
+}
+
+.dm-theme-track {
+    width: 36px;
+    height: 20px;
+    border-radius: 10px;
+    background: var(--dm-border-panel);
+    border: none;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.2s ease;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.dm-theme-track--on {
+    background: #6366f1;
+}
+
+.dm-theme-knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: white;
+    transition: left 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    pointer-events: none;
+}
+
+.dm-theme-track--on .dm-theme-knob {
+    left: 18px;
 }

@@ -18,7 +18,14 @@ const useDataModeStore = create((set, get) => ({
     // ── Dataset ──────────────────────────────────────────────
     // Metadata: { name, rowCount, columnCount, source }
     datasetMetadata: null,
-    // Spec: { columns: [{ name, type, nullCount, uniqueCount }] }
+    // Spec: {
+    //   rowCount, columnCount, numericCount, categoricalCount,
+    //   columns: [{
+    //     name, type, missing_count, unique_count, total_count,
+    //     stats:      { mean, median, min, max, std }   // numeric
+    //     top_values: [{ value, count }]                // categorical/datetime
+    //   }]
+    // }
     datasetSpec: null,
 
     // ── AI output ────────────────────────────────────────────
@@ -65,6 +72,27 @@ const useDataModeStore = create((set, get) => ({
         insightSuggestions: suggestions,
         workflowStep: 'insight',
     }),
+
+    /** Clear all nodes and edges (used before loading a new dataset) */
+    resetGraph: () => set({ nodes: [], edges: [] }),
+
+    /**
+     * Remove a node and all edges connected to it.
+     * Used by node-level "Ignore" actions.
+     */
+    removeNode: (nodeId) => set((state) => ({
+        nodes: state.nodes.filter((n) => n.id !== nodeId),
+        edges: state.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
+    })),
+
+    /**
+     * Merge data into an existing node's data field.
+     */
+    updateNodeData: (nodeId, patch) => set((state) => ({
+        nodes: state.nodes.map((n) =>
+            n.id === nodeId ? { ...n, data: { ...n.data, ...patch } } : n
+        ),
+    })),
 
 }));
 
