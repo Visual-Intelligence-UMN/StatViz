@@ -1,104 +1,93 @@
-# MindMapper
+# StatViz — Visual Data Analysis Workbench
 
-**Visual Multi-Context Interface for LLM Interaction**
+A browser-based, AI-assisted data analysis tool. Upload a CSV, explore column distributions, let the AI surface insights, generate statistical hypotheses, and run tests — all on an interactive canvas.
 
-A canvas-based, node-driven interface for exploring ideas with AI. Create query nodes on a 2D canvas, receive responses as connected nodes, and branch off any point to explore new directions while maintaining separate contexts per branch.
+> Capstone Project — Dipan Bag, Spring 2026
+
+---
+
+## Features
+
+- **Drag & drop CSV upload** — parsed entirely in-browser, no data leaves your machine
+- **Visual dataset summary** — completeness chart, histograms and box plots for numeric columns, donut charts and frequency tables for categorical ones
+- **AI-generated dataset description** — one-line context description, auto-generated and editable, injected into all downstream AI calls
+- **AI-driven insights** — 3–5 analytical insights grouped by type: Relationships, Group Differences, Distribution Issues, Outlier Candidates — each colour-coded
+- **Hypothesis generation** — click any insight to generate a testable statistical hypothesis with suggested test, directionality, and assumption notes; statement is inline-editable
+- **Statistical test runner** — Pearson correlation, Welch's t-test, and chi-square run instantly via jstat; for unsupported tests (ANOVA, Mann-Whitney, etc.) the user is prompted before an AI estimate is used
+- **Result nodes** — each test spawns a Result node showing the test statistic, p-value, significance verdict, and a plain-English summary
+
+---
 
 ## Tech Stack
 
-### Frontend
-- **React** - UI framework
-- **Vite** - Build tool & dev server
-- **React Flow** (@xyflow/react) - Canvas & node graph
+| Layer | Library |
+|---|---|
+| UI framework | React 18 + Vite |
+| Canvas | `@xyflow/react` (React Flow) |
+| State | Zustand |
+| Statistics | jstat |
+| AI | OpenAI API (`gpt-4o-mini`) — user-supplied key |
+| Styling | Plain CSS (BEM-style, CSS custom properties for theming) |
 
-### Backend (Planned)
-- **FastAPI** - Python API server
-- **FAISS** - Vector similarity search
-- **PostgreSQL** - Persistence
+---
 
-### AI/ML (Planned)
-- **OpenAI / Claude API** - LLM responses
-- **Perplexity API** - Web search
-- **Sentence Transformers** - Embeddings
-
-## Getting Started
-
-### Prerequisites
-- Node.js 18+
-- npm or yarn
-
-### Installation
+## Running Locally
 
 ```bash
-# Navigate to frontend
 cd frontend
-
-# Install dependencies
 npm install
-
-# Start development server
 npm run dev
 ```
 
-The app will be available at `http://localhost:5173` for now
+Open [http://localhost:5173](http://localhost:5173).
 
-### Build for Production
+No `.env` file or API key configuration needed — the app prompts users to enter their own OpenAI API key on first visit to `/statviz`.
 
-```bash
-npm run build
-```
+---
+
+## Usage
+
+1. Go to `/` for the landing page. Click **Explore StatViz** to open the app.
+2. On first visit you'll be prompted to enter your OpenAI API key (stored only in your browser session).
+3. Drag and drop a CSV file onto the canvas, or click anywhere to browse.
+4. A **Dataset node** appears. The AI generates a one-line description — edit it to improve downstream results.
+5. Click **View Summary** to open a Summary node with per-column visualisations.
+6. Click **Generate Insights** at the bottom of the Summary node to get AI-generated insights.
+7. Click **Generate Hypothesis** on any Insight node to form a testable hypothesis.
+8. Click **Run [test name]** on a Hypothesis node to execute the test and spawn a Result node.
+9. **Accept** or **Reject** the hypothesis once you've reviewed the result.
+
+---
 
 ## Project Structure
 
 ```
-mindmapper/
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── QueryNode.jsx      # User prompt nodes (green)
-│   │   │   ├── AnswerNode.jsx     # LLM response nodes (blue)
-│   │   │   ├── SourcesNode.jsx    # Web sources nodes (orange)
-│   │   │   ├── MindMapCanvas.jsx  # Main canvas component
-│   │   │   └── *.css              # Component styles
-│   │   ├── App.jsx
-│   │   └── main.jsx
-│   └── package.json
-└── README.md
+frontend/src/
+├── pages/
+│   └── LandingPage.jsx        # Info page at "/"
+├── app/
+│   └── AppShell.jsx           # Wrapper for /statviz
+├── modes/data/
+│   ├── DataModeApp.jsx        # Top-level canvas shell
+│   ├── components/
+│   │   ├── DataCanvas.jsx     # React Flow canvas
+│   │   ├── DatasetSidebar.jsx
+│   │   ├── UploadPopup.jsx
+│   │   └── ApiKeyModal.jsx    # API key entry on first visit
+│   ├── nodes/                 # DatasetNode, DatasetSummaryNode, InsightNode,
+│   │   └── ...                # HypothesisNode, ResultNode, ColumnNode, ColumnChart
+│   ├── api/
+│   │   ├── insightService.js
+│   │   ├── hypothesisService.js
+│   │   ├── descriptionService.js
+│   │   └── statisticsService.js
+│   ├── store/
+│   │   └── useDataModeStore.js
+│   └── utils/
+│       ├── csvParser.js
+│       ├── layoutGraph.js
+│       └── insightEngine.js
+└── constants/
+    ├── api.js                 # OPENAI_API_URL, getApiKey()
+    └── models.js              # OPENAI_MODEL
 ```
-
-## Node Types
-
-| Type | Color | Purpose |
-|------|-------|---------|
-| Query | 🟢 Green | User's questions/prompts |
-| Answer | 🔵 Blue | LLM responses with expandable bullets |
-| Sources | 🟠 Orange | Web search results |
-
-## Features
-
-### Current
-- **Canvas navigation**: Pan, zoom, drag nodes
-- **Minimap**: Overview of large boards
-- **Interactive bullets**: Hover over any answer bullet to:
-  - **Expand**: Generate follow-up response
-  - **Sources**: Search for related articles
-  - **Custom**: Enter a custom follow-up question
-
-### Planned
-- Branch-local context via RAG
-- Running summaries per branch
-- Web search integration
-- Session persistence
-- Collaborative editing
-
-## Development Timeline
-
-See the [Capstone Proposal](./docs/Proposal_V1.pdf) for the full 14-week plan.
-
-## Author
-
-Dipan Bag - bag00003@umn.edu
-
-## License
-
-This project is part of a UMN Capstone Project (Spring 2026).
