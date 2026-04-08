@@ -1,0 +1,115 @@
+.akm__overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.akm__card {
+    background: #ffffff;
+    border-radius: 14px;
+    padding: 36px 40px;
+    width: 100%;
+    max-width: 440px;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.18);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    text-align: center;
+}
+
+.akm__icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: rgba(99, 102, 241, 0.08);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    color: #6366f1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.akm__title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0;
+    letter-spacing: -0.3px;
+}
+
+.akm__desc {
+    font-size: 13px;
+    color: #64748b;
+    line-height: 1.65;
+    margin: 0;
+    max-width: 360px;
+}
+
+.akm__form {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.akm__input {
+    width: 100%;
+    padding: 11px 14px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: 'Inter', monospace, sans-serif;
+    color: #0f172a;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease;
+}
+
+.akm__input:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.akm__btn {
+    width: 100%;
+    padding: 12px;
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    color: white;
+    font-size: 14px;
+    font-weight: 700;
+    font-family: inherit;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.akm__btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.akm__btn:not(:disabled):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+}
+
+.akm__link {
+    font-size: 12px;
+    color: #6366f1;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.akm__link:hover {
+    text-decoration: underline;
+}

@@ -21,7 +21,7 @@
  */
 
 import { jStat } from 'jstat';
-import { OPENAI_API_KEY, OPENAI_API_URL } from '../../../constants/api';
+import { getApiKey, OPENAI_API_URL } from '../../../constants/api';
 import { OPENAI_MODEL } from '../../../constants/models';
 
 const ALPHA = 0.05;
@@ -299,7 +299,7 @@ ${colLines || '  (no column stats available)'}`;
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${OPENAI_API_KEY}`,
+            Authorization: `Bearer ${getApiKey()}`,
         },
         body: JSON.stringify({
             model: OPENAI_MODEL,

@@ -38,6 +38,9 @@ const useDataModeStore = create((set, get) => ({
     // e.g. 'idle' | 'dataset' | 'hypothesis' | 'test' | 'result' | 'insight'
     workflowStep: 'idle',
 
+    // ── API key (user-supplied, stored in sessionStorage) ────────────
+    apiKey: sessionStorage.getItem('sv_openai_key') || '',
+
 
     // ── Actions ──────────────────────────────────────────────
 
@@ -78,6 +81,12 @@ const useDataModeStore = create((set, get) => ({
 
     /** Set or update the user-editable dataset description */
     setDatasetDescription: (text) => set({ datasetDescription: text }),
+
+    /** Store the user-supplied OpenAI API key in state + sessionStorage */
+    setApiKey: (key) => {
+        sessionStorage.setItem('sv_openai_key', key);
+        set({ apiKey: key });
+    },
 
     /** Clear all nodes and edges (used before loading a new dataset) */
     resetGraph: () => set({ nodes: [], edges: [], datasetDescription: '' }),

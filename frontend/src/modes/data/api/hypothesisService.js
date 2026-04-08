@@ -20,7 +20,7 @@
  * }
  */
 
-import { OPENAI_API_KEY, OPENAI_API_URL } from '../../../constants/api';
+import { getApiKey, OPENAI_API_URL } from '../../../constants/api';
 import { OPENAI_MODEL } from '../../../constants/models';
 
 const SYSTEM_PROMPT = `You are a statistical hypothesis designer. Given an exploratory insight and dataset context, generate one precisely phrased, testable statistical hypothesis.
@@ -89,7 +89,7 @@ export async function fetchHypothesis(insight, metadata, spec, label, descriptio
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${OPENAI_API_KEY}`,
+            Authorization: `Bearer ${getApiKey()}`,
         },
         body: JSON.stringify({
             model: OPENAI_MODEL,

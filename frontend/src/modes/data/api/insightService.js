@@ -16,7 +16,7 @@
  * }
  */
 
-import { OPENAI_API_KEY, OPENAI_API_URL } from '../../../constants/api';
+import { getApiKey, OPENAI_API_URL } from '../../../constants/api';
 import { OPENAI_MODEL } from '../../../constants/models';
 
 const SYSTEM_PROMPT = `You are a data analysis assistant. Given a dataset schema with column statistics, generate 3-5 exploratory analytical insights that a researcher should investigate.
@@ -69,7 +69,7 @@ export async function fetchInsights(metadata, spec, description = '') {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${OPENAI_API_KEY}`,
+            Authorization: `Bearer ${getApiKey()}`,
         },
         body: JSON.stringify({
             model: OPENAI_MODEL,

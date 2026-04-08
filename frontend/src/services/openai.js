@@ -1,10 +1,10 @@
 import OpenAI from 'openai';
-import { OPENAI_API_KEY } from '../constants/api';
+import { getApiKey } from '../constants/api';
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true // Note: In production, API calls should go through a backend
+// Returns a fresh client using the current session API key
+const getOpenAIClient = () => new OpenAI({
+  apiKey: getApiKey(),
+  dangerouslyAllowBrowser: true,
 });
 
 /**
@@ -28,7 +28,7 @@ Keep responses focused and relevant to the question.`;
       { role: 'user', content: query }
     ];
 
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAIClient().chat.completions.create({
       model: 'gpt-3.5-turbo',
       messages: messages,
       temperature: 0.7,

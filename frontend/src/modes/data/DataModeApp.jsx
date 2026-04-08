@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import './DataModeApp.css';
 import DataCanvas from './components/DataCanvas';
 import UploadPopup from './components/UploadPopup';
+import ApiKeyModal from './components/ApiKeyModal';
 import useDataModeStore from './store/useDataModeStore';
 import { parseCSV } from './utils/csvParser';
 import { nodeTypes } from './nodes/index';
@@ -11,6 +12,7 @@ function DataModeApp() {
     const [uploadPos, setUploadPos] = useState(null);
     const [dragOver, setDragOver]   = useState(false);
 
+    const apiKey          = useDataModeStore((s) => s.apiKey);
     const datasetMetadata = useDataModeStore((s) => s.datasetMetadata);
     const addNode         = useDataModeStore((s) => s.addNode);
     const setDataset      = useDataModeStore((s) => s.setDataset);
@@ -110,6 +112,9 @@ function DataModeApp() {
                     onClose={() => setUploadPos(null)}
                 />
             )}
+
+            {/* API key gate — shown until user enters their key */}
+            {!apiKey && <ApiKeyModal />}
 
         </div>
     );

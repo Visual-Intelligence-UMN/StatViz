@@ -8,7 +8,7 @@
  *   fetchDatasetDescription(metadata, spec) → Promise<string>
  */
 
-import { OPENAI_API_KEY, OPENAI_API_URL } from '../../../constants/api';
+import { getApiKey, OPENAI_API_URL } from '../../../constants/api';
 import { OPENAI_MODEL } from '../../../constants/models';
 
 const SYSTEM_PROMPT = `You are a data analyst. Given a dataset name and its column schema, write ONE concise sentence (max 20 words) describing what this dataset is about and what it likely measures or tracks. Be specific and plain — no jargon, no filler phrases like "This dataset contains". Just the fact of what it is.`;
@@ -32,7 +32,7 @@ export async function fetchDatasetDescription(metadata, spec) {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${OPENAI_API_KEY}`,
+            Authorization: `Bearer ${getApiKey()}`,
         },
         body: JSON.stringify({
             model: OPENAI_MODEL,
