@@ -4,7 +4,18 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <title>StatViz</title>
+    <script>
+      // Restore path encoded by 404.html for SPA routing on GitHub Pages
+      (function(l) {
+        if (l.search[1] === 'p') {
+          var params = l.search.slice(1).split('&');
+          var path = '/' + params[0].slice(2).replace(/~and~/g, '&');
+          var query = params[1] ? '?' + params[1].slice(2).replace(/~and~/g, '&') : '';
+          window.history.replaceState(null, null, l.pathname + path + query + l.hash);
+        }
+      }(window.location));
+    </script>
   </head>
   <body>
     <div id="root"></div>
