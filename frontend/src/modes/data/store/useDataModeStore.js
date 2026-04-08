@@ -31,6 +31,9 @@ const useDataModeStore = create((set, get) => ({
     // ── AI output ────────────────────────────────────────────
     insightSuggestions: [],
 
+    // ── Dataset description (AI-generated, user-editable) ────
+    datasetDescription: '',
+
     // ── Pipeline progress ────────────────────────────────────
     // e.g. 'idle' | 'dataset' | 'hypothesis' | 'test' | 'result' | 'insight'
     workflowStep: 'idle',
@@ -73,8 +76,11 @@ const useDataModeStore = create((set, get) => ({
         workflowStep: 'insight',
     }),
 
+    /** Set or update the user-editable dataset description */
+    setDatasetDescription: (text) => set({ datasetDescription: text }),
+
     /** Clear all nodes and edges (used before loading a new dataset) */
-    resetGraph: () => set({ nodes: [], edges: [] }),
+    resetGraph: () => set({ nodes: [], edges: [], datasetDescription: '' }),
 
     /**
      * Remove a node and all edges connected to it.

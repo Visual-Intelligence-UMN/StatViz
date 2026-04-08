@@ -5,10 +5,10 @@ import { fetchHypothesis } from '../api/hypothesisService';
 import './nodes.css';
 
 const TYPE_META = {
-    relationship:        { label: 'Relationship'      },
-    group_difference:    { label: 'Group Difference'  },
-    distribution_issue:  { label: 'Distribution Issue'},
-    outlier_candidate:   { label: 'Outlier Candidate' },
+    relationship:        { label: 'Relationship',       cls: 'dm-node--insight-relationship'      },
+    group_difference:    { label: 'Group Difference',   cls: 'dm-node--insight-group_difference'  },
+    distribution_issue:  { label: 'Distribution Issue', cls: 'dm-node--insight-distribution_issue'},
+    outlier_candidate:   { label: 'Outlier Candidate',  cls: 'dm-node--insight-outlier_candidate' },
 };
 
 const EDGE_HYPOTHESIS = {
@@ -48,7 +48,8 @@ function InsightNode({ id, data, selected }) {
             const hypCount = nodes.filter((n) => n.type === 'hypothesis').length;
             const label    = `H${hypCount + 1}`;
 
-            const hypothesis = await fetchHypothesis(data, datasetMetadata, datasetSpec, label);
+            const { datasetDescription } = useDataModeStore.getState();
+            const hypothesis = await fetchHypothesis(data, datasetMetadata, datasetSpec, label, datasetDescription);
 
             const hypId = `hyp-${id}-${Date.now()}`;
 
@@ -84,7 +85,7 @@ function InsightNode({ id, data, selected }) {
     // ── Render ────────────────────────────────────────────────────────────
 
     return (
-        <div className={`dm-node dm-node--insight ${selected ? 'dm-node--selected' : ''}`}>
+        <div className={`dm-node dm-node--insight ${meta.cls ?? ''} ${selected ? 'dm-node--selected' : ''}`}>
             <div className="dm-node__header">
                 {meta.label}
             </div>

@@ -269,6 +269,7 @@ export async function parseCSV(file) {
 
     const columns = headers.map((name, i) => ({
         name,
+        raw_values: columnValues[i],
         ...analyzeColumn(columnValues[i]),
     }));
 

@@ -29,7 +29,7 @@ function LayoutEngine() {
     const nodes    = useDataModeStore((s) => s.nodes);
     const edges    = useDataModeStore((s) => s.edges);
     const setNodes = useDataModeStore((s) => s.setNodes);
-    const { fitView } = useReactFlow();
+    useReactFlow(); // kept for potential future use
 
     // Track the collapsed state of the summary node so we can re-layout
     // when it expands (becomes ~500 px tall) or collapses (~110 px)
@@ -49,9 +49,6 @@ function LayoutEngine() {
 
         const laid = layoutGraph(nodes, edges);
         setNodes(laid);
-
-        // Give React one frame to commit new positions before fitting
-        setTimeout(() => fitView({ padding: 0.2, duration: 400 }), 60);
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [nodes.length, edges.length, summaryCollapsed]);
@@ -105,8 +102,7 @@ function DataCanvas({ nodeTypes = {}, edgeTypes = {}, onPaneClick: externalPaneC
             onPaneClick={onPaneClick}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
-            fitView
-            fitViewOptions={{ padding: 0.2 }}
+
             minZoom={0.1}
             maxZoom={2}
             panOnScroll

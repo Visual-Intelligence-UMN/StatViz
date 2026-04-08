@@ -1,5 +1,7 @@
+import { useEffect, useRef } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import useDataModeStore from '../store/useDataModeStore';
+import { fetchDatasetDescription } from '../api/descriptionService';
 import './nodes.css';
 
 const EDGE_SUMMARY = {
@@ -9,14 +11,26 @@ const EDGE_SUMMARY = {
 };
 
 function DatasetNode({ id, data, selected }) {
-    // Reactive: button appears once spec is loaded
-    const hasSpec = useDataModeStore((s) => !!s.datasetSpec);
-
-    // Reactive: tracks whether a summary node exists and its collapsed state
-    const summaryNode      = useDataModeStore(
+    const hasSpec     = useDataModeStore((s) => !!s.datasetSpec);
+    const summaryNode = useDataModeStore(
         (s) => s.nodes.find((n) => n.id === `summary-${id}`) ?? null
     );
     const summaryCollapsed = summaryNode?.data?.collapsed ?? true;
+
+    const description    = useDataModeStore((s) => s.datasetDescription);
+    const setDescription = useDataModeStore((s) => s.setDatasetDescription);
+    const descFetched    = useRef(false);
+
+    // Auto-generate description as soon as the node mounts with spec available
+    useEffect(() => {
+        if (descFetched.current) return;
+        const { datasetMetadata, datasetSpec } = useDataModeStore.getState();
+        if (!datasetMetadata || !datasetSpec) return;
+        descFetched.current = true;
+        fetchDatasetDescription(datasetMetadata, datasetSpec)
+            .then((text) => setDescription(text))
+            .catch(() => {});
+    }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── View Summary ──────────────────────────────────────────────────────
 
@@ -61,9 +75,7 @@ function DatasetNode({ id, data, selected }) {
 
     return (
         <div className={`dm-node dm-node--dataset ${selected ? 'dm-node--selected' : ''}`}>
-            <div className="dm-node__header">
-                Dataset
-            </div>
+            <div className="dm-node__header">Dataset</div>
 
             <div className="dm-node__body">
                 <div className="dm-node__label">{data.name || 'Untitled Dataset'}</div>
@@ -75,6 +87,17 @@ function DatasetNode({ id, data, selected }) {
                 {data.source && (
                     <div className="dm-node__meta">Source: {data.source}</div>
                 )}
+            </div>
+
+            {/* AI-generated description, user-editable */}
+            <div className="dsn__desc-wrap">
+                <textarea
+                    className={`dsn__desc-input ${!description ? 'dsn__desc-input--loading' : ''}`}
+                    value={description}
+                    placeholder="Generating description…"
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={2}
+                />
             </div>
 
             {hasSpec && (

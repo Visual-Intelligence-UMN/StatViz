@@ -67,60 +67,41 @@ function DataModeApp() {
             onDrop={handleDrop}
         >
 
-            {/* ── Body row ──────────────────────────────────── */}
-            <div className="dm-body">
-
-                {/* Center Canvas — React Flow */}
-                <main className="dm-canvas">
-                    <DataCanvas nodeTypes={nodeTypes} onPaneClick={handlePaneClick} />
-
-                    {/* Empty-state hint */}
-                    {!datasetMetadata && (
-                        <div className="dm-canvas__empty-state">
-                            <div className="dm-canvas__empty-title">
-                                {dragOver ? 'Drop to upload' : 'Drag & drop a CSV, or click anywhere to upload'}
-                            </div>
-                            {!dragOver && (
-                                <div className="dm-canvas__empty-sub">Your analysis graph will appear here</div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Full-canvas drag overlay */}
-                    {dragOver && !datasetMetadata && (
-                        <div className="dm-canvas__drag-overlay" />
-                    )}
-                </main>
-
-                {/* Right Panel — Inspector / Suggestions */}
-                <aside className="dm-inspector">
-
-                    {/* Dark mode toggle */}
-                    <div className="dm-theme-row">
-                        <span className="dm-theme-label">Dark Mode</span>
-                        <button
-                            className={`dm-theme-track ${theme === 'dark' ? 'dm-theme-track--on' : ''}`}
-                            onClick={toggleTheme}
-                            role="switch"
-                            aria-checked={theme === 'dark'}
-                            aria-label="Toggle dark mode"
-                        >
-                            <span className="dm-theme-knob" />
-                        </button>
-                    </div>
-
-                    <div className="dm-sidebar__divider" />
-
-                    <div className="dm-sidebar__section-label">Inspector</div>
-                    <div className="dm-sidebar__empty">Select a node to inspect</div>
-
-                    <div className="dm-sidebar__divider" />
-
-                    <div className="dm-sidebar__section-label">Suggestions</div>
-                    <div className="dm-sidebar__empty">Suggestions will appear here</div>
-                </aside>
-
+            {/* Dark mode toggle — top right corner */}
+            <div className="dm-theme-fab">
+                <span className="dm-theme-label">Dark Mode</span>
+                <button
+                    className={`dm-theme-track ${theme === 'dark' ? 'dm-theme-track--on' : ''}`}
+                    onClick={toggleTheme}
+                    role="switch"
+                    aria-checked={theme === 'dark'}
+                    aria-label="Toggle dark mode"
+                >
+                    <span className="dm-theme-knob" />
+                </button>
             </div>
+
+            {/* ── Canvas ──────────────────────────────────── */}
+            <main className="dm-canvas">
+                <DataCanvas nodeTypes={nodeTypes} onPaneClick={handlePaneClick} />
+
+                {/* Empty-state hint */}
+                {!datasetMetadata && (
+                    <div className="dm-canvas__empty-state">
+                        <div className="dm-canvas__empty-title">
+                            {dragOver ? 'Drop to upload' : 'Drag & drop a CSV, or click anywhere to upload'}
+                        </div>
+                        {!dragOver && (
+                            <div className="dm-canvas__empty-sub">Your analysis graph will appear here</div>
+                        )}
+                    </div>
+                )}
+
+                {/* Full-canvas drag overlay */}
+                {dragOver && !datasetMetadata && (
+                    <div className="dm-canvas__drag-overlay" />
+                )}
+            </main>
 
             {/* Upload popup (click path) */}
             {uploadPos && (

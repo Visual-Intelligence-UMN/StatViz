@@ -21,8 +21,7 @@
  */
 
 import { OPENAI_API_KEY, OPENAI_API_URL } from '../../../constants/api';
-
-const MODEL = 'gpt-4o-mini';
+import { OPENAI_MODEL } from '../../../constants/models';
 
 const SYSTEM_PROMPT = `You are a statistical hypothesis designer. Given an exploratory insight and dataset context, generate one precisely phrased, testable statistical hypothesis.
 
@@ -43,7 +42,7 @@ Be specific — reference actual column names and mention observed statistics wh
  * Build the user prompt from the insight and dataset context.
  * Only includes schema rows for columns relevant to the insight.
  */
-function buildPrompt(insight, metadata, spec, label) {
+function buildPrompt(insight, metadata, spec, label, description) {
     const relevantNames = insight.columns_involved ?? [];
     const relevantCols  = spec.columns.filter((c) => relevantNames.includes(c.name));
 
@@ -67,7 +66,7 @@ function buildPrompt(insight, metadata, spec, label) {
   Reason: ${insight.reason}
   Columns: ${relevantNames.join(', ') || '(unspecified)'}
 
-Dataset: "${metadata.name}" — ${metadata.rows.toLocaleString()} rows, ${spec.columnCount} columns (${spec.numericCount} numeric, ${spec.categoricalCount} categorical)
+Dataset: "${metadata.name}" — ${metadata.rows.toLocaleString()} rows, ${spec.columnCount} columns (${spec.numericCount} numeric, ${spec.categoricalCount} categorical)${description ? `\nContext: ${description}` : ''}
 
 Hypothesis Label: ${label}
 
@@ -82,9 +81,10 @@ ${colLines || '  (no column-level stats available)'}`;
  * @param {{ name, rows, columns }}                                metadata
  * @param {{ rowCount, columnCount, numericCount, categoricalCount, columns: [] }} spec
  * @param {string}                                                 label  e.g. "H1"
- * @returns {Promise<HypothesisDef>}
+ * @param {string}                                                 [description]
+ * @returns {Promise<object>}
  */
-export async function fetchHypothesis(insight, metadata, spec, label) {
+export async function fetchHypothesis(insight, metadata, spec, label, description = '') {
     const response = await fetch(OPENAI_API_URL, {
         method: 'POST',
         headers: {
@@ -92,10 +92,10 @@ export async function fetchHypothesis(insight, metadata, spec, label) {
             Authorization: `Bearer ${OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-            model: MODEL,
+            model: OPENAI_MODEL,
             messages: [
                 { role: 'system', content: SYSTEM_PROMPT },
-                { role: 'user',   content: buildPrompt(insight, metadata, spec, label) },
+                { role: 'user',   content: buildPrompt(insight, metadata, spec, label, description) },
             ],
             temperature: 0.3,
             max_tokens:  700,

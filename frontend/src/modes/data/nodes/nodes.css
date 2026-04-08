@@ -99,13 +99,46 @@
     background: #065f46;
 }
 
+/* Insight — base (fallback) */
 .dm-node--insight {
     border-color: #6366f1;
 }
-
 .dm-node--insight .dm-node__header {
     background: #4338ca;
 }
+
+/* Insight: Relationship → teal */
+.dm-node--insight-relationship {
+    border-color: #06b6d4;
+}
+.dm-node--insight-relationship .dm-node__header {
+    background: #0e7490;
+}
+
+/* Insight: Group Difference → amber */
+.dm-node--insight-group_difference {
+    border-color: #f59e0b;
+}
+.dm-node--insight-group_difference .dm-node__header {
+    background: #b45309;
+}
+
+/* Insight: Distribution Issue → rose */
+.dm-node--insight-distribution_issue {
+    border-color: #f43f5e;
+}
+.dm-node--insight-distribution_issue .dm-node__header {
+    background: #be123c;
+}
+
+/* Insight: Outlier Candidate → orange */
+.dm-node--insight-outlier_candidate {
+    border-color: #f97316;
+}
+.dm-node--insight-outlier_candidate .dm-node__header {
+    background: #c2410c;
+}
+
 
 .dm-node--interpretation {
     border-color: #ec4899;
@@ -317,6 +350,73 @@
     line-height: 1.4;
 }
 
+/* Hypothesis statement edit */
+.hyp__statement {
+    cursor: pointer;
+}
+.hyp__statement:hover {
+    opacity: 0.75;
+}
+
+.hyp__edit-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: 2px 0;
+}
+
+.hyp__edit-input {
+    width: 100%;
+    box-sizing: border-box;
+    resize: none;
+    border: 1.5px solid var(--dm-accent);
+    border-radius: 6px;
+    background: var(--dm-accent-dim, rgba(99,102,241,0.06));
+    color: var(--dm-text-primary);
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 11.5px;
+    font-style: italic;
+    line-height: 1.55;
+    padding: 6px 8px;
+    outline: none;
+}
+
+.hyp__edit-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.hyp__edit-btn {
+    flex: 1;
+    padding: 4px 8px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    border: 1.5px solid transparent;
+}
+
+.hyp__edit-btn--save {
+    background: var(--dm-accent-dim);
+    border-color: var(--dm-accent-mid);
+    color: var(--dm-accent);
+}
+
+.hyp__edit-btn--save:hover {
+    background: var(--dm-accent-mid);
+}
+
+.hyp__edit-btn--cancel {
+    background: transparent;
+    border-color: var(--dm-node-divider);
+    color: var(--dm-text-muted);
+}
+
+.hyp__edit-btn--cancel:hover {
+    border-color: var(--dm-text-muted);
+}
+
 /* Active variants for Accept / Reject buttons */
 .dm-node__action-btn--active-green {
     background: rgba(16, 185, 129, 0.15);
@@ -519,6 +619,54 @@
     font-style: normal;
     color: var(--dm-text-muted);
     margin-left: 3px;
+}
+
+/* ── Dataset description textarea ────────────────────────────────────── */
+
+.dsn__desc-wrap {
+    padding: 4px 12px 10px;
+}
+
+.dsn__desc-label {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--dm-text-muted);
+    margin-bottom: 5px;
+}
+
+.dsn__desc-input {
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    border: 1.5px solid var(--dm-accent-mid, #818cf8);
+    border-radius: 7px;
+    background: var(--dm-accent-dim, rgba(99,102,241,0.06));
+    color: var(--dm-text-primary);
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 12px;
+    line-height: 1.5;
+    padding: 8px 10px;
+    outline: none;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.dsn__desc-input:focus {
+    border-color: var(--dm-accent);
+    background: var(--dm-accent-dim, rgba(99,102,241,0.1));
+}
+
+.dsn__desc-input::placeholder {
+    color: var(--dm-text-muted);
+    font-style: italic;
+}
+
+.dsn__desc-input--loading {
+    color: var(--dm-text-muted);
+    font-style: italic;
+    cursor: default;
+    border-style: dashed;
 }
 
 /* ── Column mini-charts ───────────────────────────────────────────────── */
@@ -837,6 +985,112 @@
     font-size: 9px;
     color: var(--dm-text-muted);
     font-variant-numeric: tabular-nums;
+}
+
+/* ── ResultNode ───────────────────────────────────────────────────────── */
+
+.res__ai-badge {
+    margin-left: auto;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(245, 158, 11, 0.2);
+    color: #d97706;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.res__method {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--dm-node-label);
+    margin-bottom: 4px;
+}
+
+.res__verdict {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 5px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.res__verdict--significant {
+    background: rgba(16, 185, 129, 0.12);
+    color: #059669;
+    border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.res__verdict--not {
+    background: rgba(239, 68, 68, 0.08);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.res__alpha {
+    font-size: 9px;
+    font-weight: 400;
+    opacity: 0.7;
+}
+
+.res__stats-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 4px;
+}
+
+.res__stat-pill {
+    font-size: 10.5px;
+    font-variant-numeric: tabular-nums;
+    color: var(--dm-node-meta);
+    background: var(--dm-chip-bg);
+    border: 1px solid var(--dm-chip-border);
+    border-radius: 4px;
+    padding: 2px 7px;
+}
+
+.res__summary {
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+/* ── HypothesisNode consent banner ────────────────────────────────────── */
+
+.hyp__consent {
+    margin-top: 6px;
+    padding: 9px 10px;
+    border-radius: 7px;
+    background: rgba(245, 158, 11, 0.07);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.hyp__consent-text {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--dm-text-secondary);
+    line-height: 1.45;
+}
+
+.hyp__consent-icon {
+    flex-shrink: 0;
+    font-size: 13px;
+    line-height: 1.3;
+}
+
+.hyp__consent-actions {
+    display: flex;
+    gap: 6px;
 }
 
 /* ── Insight node extras ──────────────────────────────────────────────── */

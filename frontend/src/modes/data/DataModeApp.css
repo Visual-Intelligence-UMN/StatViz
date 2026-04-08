@@ -243,63 +243,23 @@
     box-shadow: 0 4px 16px rgba(99, 102, 241, 0.5);
 }
 
-/* ════════════════════════════════════════════
-   Body Row
-════════════════════════════════════════════ */
-.dm-body {
+/* ── Dark mode toggle — floating top-right ── */
+.dm-theme-fab {
+    position: fixed;
+    top: 12px;
+    right: 16px;
+    z-index: 50;
     display: flex;
-    flex: 1;
-    overflow: hidden;
-}
-
-/* ── Shared sidebar styles ── */
-.dm-sidebar,
-.dm-inspector {
-    width: 240px;
-    flex-shrink: 0;
+    align-items: center;
+    gap: 8px;
     background: var(--dm-bg-panel);
-    border-color: var(--dm-border-panel);
-    border-style: solid;
-    border-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 16px 14px;
-    overflow-y: auto;
+    border: 1px solid var(--dm-border-panel);
+    border-radius: 20px;
+    padding: 6px 12px 6px 10px;
+    box-shadow: 0 2px 8px var(--dm-node-shadow);
 }
 
-.dm-sidebar {
-    border-right-width: 1px;
-}
-
-.dm-inspector {
-    border-left-width: 1px;
-}
-
-.dm-sidebar__section-label {
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--dm-section-label);
-    margin-bottom: 4px;
-    margin-top: 4px;
-}
-
-.dm-sidebar__empty {
-    font-size: 12px;
-    color: var(--dm-section-empty);
-    font-style: italic;
-    padding: 6px 2px;
-}
-
-.dm-sidebar__divider {
-    height: 1px;
-    background: var(--dm-section-divider);
-    margin: 12px 0;
-}
-
-/* ── Center Canvas ── */
+/* ── Canvas fills the whole shell ── */
 .dm-canvas {
     flex: 1;
     position: relative;

@@ -12,9 +12,11 @@
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",
     "@xyflow/react": "^12.9.3",
+    "jstat": "^1.9.6",
     "openai": "^6.16.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-router-dom": "^7.14.0",
     "zustand": "^5.0.11"
   },
   "devDependencies": {

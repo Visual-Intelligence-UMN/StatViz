@@ -100,7 +100,12 @@ function ExpandedSummary({ id, spec, selected }) {
                 .filter((tid) => nodes.find((n) => n.id === tid)?.type === 'insight');
             staleIds.forEach((tid) => removeNode(tid));
 
-            const insights = await fetchInsights(datasetMetadata, datasetSpec);
+            const { datasetDescription } = useDataModeStore.getState();
+            const rawInsights = await fetchInsights(datasetMetadata, datasetSpec, datasetDescription);
+            // Group same types together so they appear adjacent on the canvas
+            const insights = [...rawInsights].sort((a, b) =>
+                (a.type ?? '').localeCompare(b.type ?? '')
+            );
             const thisNode = nodes.find((n) => n.id === id);
             const pos      = thisNode?.position ?? { x: 780, y: 200 };
             const spacing  = 320;

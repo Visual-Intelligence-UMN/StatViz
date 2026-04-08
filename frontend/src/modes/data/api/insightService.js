@@ -17,8 +17,7 @@
  */
 
 import { OPENAI_API_KEY, OPENAI_API_URL } from '../../../constants/api';
-
-const MODEL = 'gpt-4o-mini';
+import { OPENAI_MODEL } from '../../../constants/models';
 
 const SYSTEM_PROMPT = `You are a data analysis assistant. Given a dataset schema with column statistics, generate 3-5 exploratory analytical insights that a researcher should investigate.
 
@@ -34,7 +33,7 @@ Be specific — reference actual column names and observed statistics in your de
 /**
  * Build the user message from dataset metadata and spec.
  */
-function buildPrompt(metadata, spec) {
+function buildPrompt(metadata, spec, description) {
     const colLines = spec.columns.map((c) => {
         const base = `  - ${c.name} (${c.type}): ${c.missing_count} missing, ${c.unique_count} unique`;
         if (c.type === 'numeric' && c.stats) {
@@ -48,8 +47,10 @@ function buildPrompt(metadata, spec) {
         return base;
     }).join('\n');
 
+    const descLine = description ? `\nContext: ${description}` : '';
+
     return `Dataset: "${metadata.name}"
-Rows: ${metadata.rows.toLocaleString()} | Columns: ${spec.columnCount} (${spec.numericCount} numeric, ${spec.categoricalCount} categorical)
+Rows: ${metadata.rows.toLocaleString()} | Columns: ${spec.columnCount} (${spec.numericCount} numeric, ${spec.categoricalCount} categorical)${descLine}
 
 Schema:
 ${colLines}`;
@@ -60,9 +61,10 @@ ${colLines}`;
  *
  * @param {{ name, rows, columns, source }} metadata
  * @param {{ rowCount, columnCount, numericCount, categoricalCount, columns: Array<{ name, type, missing_count, unique_count, stats?, top_values? }> }} spec
- * @returns {Promise<InsightDef[]>}
+ * @param {string} [description] - optional user-provided dataset description
+ * @returns {Promise<object[]>}
  */
-export async function fetchInsights(metadata, spec) {
+export async function fetchInsights(metadata, spec, description = '') {
     const response = await fetch(OPENAI_API_URL, {
         method: 'POST',
         headers: {
@@ -70,10 +72,10 @@ export async function fetchInsights(metadata, spec) {
             Authorization: `Bearer ${OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-            model: MODEL,
+            model: OPENAI_MODEL,
             messages: [
                 { role: 'system', content: SYSTEM_PROMPT },
-                { role: 'user',   content: buildPrompt(metadata, spec) },
+                { role: 'user',   content: buildPrompt(metadata, spec, description) },
             ],
             temperature: 0.4,
             max_tokens: 1200,
