@@ -1,0 +1,302 @@
+/* ── Message bubbles ── */
+
+.cpc__msg {
+    font-size: 12.5px;
+    line-height: 1.55;
+    padding: 8px 10px;
+    border-radius: 8px;
+    max-width: 100%;
+    word-break: break-word;
+}
+
+.cpc__msg--user {
+    background: var(--dm-accent-dim);
+    color: var(--dm-text-primary);
+    border: 1px solid var(--dm-accent-mid);
+    align-self: flex-end;
+    margin-left: 16px;
+}
+
+.cpc__msg--assistant {
+    background: var(--dm-node-item-bg);
+    color: var(--dm-text-primary);
+    border: 1px solid var(--dm-border-subtle);
+    align-self: flex-start;
+    margin-right: 8px;
+}
+
+/* Markdown content inside assistant bubbles */
+.cpc__md {
+    display: block;
+}
+
+.cpc__md p {
+    margin: 0 0 6px;
+}
+
+.cpc__md p:last-child {
+    margin-bottom: 0;
+}
+
+.cpc__md strong {
+    font-weight: 700;
+    color: var(--dm-text-primary);
+}
+
+.cpc__md em {
+    font-style: italic;
+}
+
+.cpc__md ul,
+.cpc__md ol {
+    margin: 4px 0 6px;
+    padding-left: 18px;
+}
+
+.cpc__md li {
+    margin-bottom: 3px;
+}
+
+.cpc__md code {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    background: var(--dm-accent-dim);
+    border: 1px solid var(--dm-border-subtle);
+    border-radius: 3px;
+    padding: 1px 4px;
+}
+
+.cpc__md pre {
+    background: var(--dm-node-item-bg);
+    border: 1px solid var(--dm-border-subtle);
+    border-radius: 6px;
+    padding: 8px 10px;
+    overflow-x: auto;
+    margin: 6px 0;
+}
+
+.cpc__md pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 10.5px;
+}
+
+.cpc__md h1, .cpc__md h2, .cpc__md h3 {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--dm-text-primary);
+    margin: 8px 0 4px;
+}
+
+.cpc__md blockquote {
+    border-left: 3px solid var(--dm-accent);
+    margin: 6px 0;
+    padding: 2px 10px;
+    color: var(--dm-text-secondary);
+    font-style: italic;
+}
+
+/* Blinking cursor for streaming messages */
+.cpc__cursor {
+    display: inline-block;
+    width: 2px;
+    height: 12px;
+    background: var(--dm-accent);
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    animation: cpc-blink 0.8s step-end infinite;
+}
+
+@keyframes cpc-blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0; }
+}
+
+/* Send button spinner */
+.dm-chat__spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: cpc-spin 0.6s linear infinite;
+}
+
+@keyframes cpc-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ── Tool result cards ── */
+
+.cpc__card {
+    border: 1px solid var(--dm-border-panel);
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: var(--dm-bg-panel);
+    font-size: 11.5px;
+    color: var(--dm-text-primary);
+}
+
+.cpc__card-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--dm-section-label);
+    margin-bottom: 8px;
+}
+
+.cpc__error-inline {
+    font-size: 11.5px;
+    color: #ef4444;
+}
+
+/* Stats card */
+.cpc__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+}
+
+.cpc__table th {
+    text-align: left;
+    font-weight: 600;
+    color: var(--dm-text-muted);
+    padding: 2px 4px 4px;
+    border-bottom: 1px solid var(--dm-border-subtle);
+}
+
+.cpc__table td {
+    padding: 3px 4px;
+    color: var(--dm-text-primary);
+    vertical-align: top;
+}
+
+.cpc__table tr + tr td {
+    border-top: 1px solid var(--dm-node-divider);
+}
+
+.cpc__td--detail {
+    font-size: 10.5px;
+    color: var(--dm-text-secondary);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.cpc__tr--muted td {
+    color: var(--dm-text-muted);
+}
+
+/* Test card */
+.cpc__test-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.cpc__test-stat {
+    font-size: 11px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    color: var(--dm-text-secondary);
+}
+
+.cpc__test-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 10px;
+}
+
+.cpc__test-badge--sig {
+    background: rgba(16, 185, 129, 0.12);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.cpc__test-badge--ns {
+    background: rgba(148, 163, 184, 0.1);
+    color: var(--dm-text-muted);
+    border: 1px solid var(--dm-border-subtle);
+}
+
+.cpc__test-summary {
+    font-size: 11.5px;
+    color: var(--dm-text-secondary);
+    line-height: 1.5;
+}
+
+/* Values card */
+.cpc__values-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.cpc__value-chip {
+    font-size: 10.5px;
+    background: var(--dm-node-item-bg);
+    border: 1px solid var(--dm-border-subtle);
+    border-radius: 4px;
+    padding: 1px 5px;
+    color: var(--dm-text-secondary);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.cpc__value-more {
+    font-size: 10px;
+    color: var(--dm-text-muted);
+    align-self: center;
+}
+
+/* Correlation card */
+.cpc__heatmap-wrap {
+    overflow-x: auto;
+    padding-top: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--dm-scrollbar-thumb) transparent;
+}
+
+/* Summary card */
+.cpc__summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.cpc__summary-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: var(--dm-node-item-bg);
+    border: 1px solid var(--dm-border-subtle);
+    border-radius: 6px;
+    padding: 6px 4px;
+}
+
+.cpc__summary-item span {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--dm-accent);
+    line-height: 1;
+}
+
+.cpc__summary-item label {
+    font-size: 9.5px;
+    color: var(--dm-text-muted);
+    margin-top: 3px;
+    text-align: center;
+}
+
+/* Raw fallback */
+.cpc__raw {
+    font-size: 10px;
+    color: var(--dm-text-muted);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 120px;
+    overflow-y: auto;
+    margin: 0;
+}

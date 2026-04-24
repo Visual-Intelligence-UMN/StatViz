@@ -243,20 +243,209 @@
     box-shadow: 0 4px 16px rgba(99, 102, 241, 0.5);
 }
 
-/* ── Dark mode toggle — floating top-right ── */
-.dm-theme-fab {
+/* ── Right sidebar ── */
+.dm-sidebar {
     position: fixed;
-    top: 12px;
-    right: 16px;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    transform: translateX(100%);
+    transition: transform 0.22s ease;
     z-index: 50;
     display: flex;
-    align-items: center;
-    gap: 8px;
+    pointer-events: none;
+}
+
+.dm-sidebar--open {
+    transform: translateX(0);
+}
+
+.dm-sidebar__tab {
+    position: absolute;
+    left: -28px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 52px;
     background: var(--dm-bg-panel);
     border: 1px solid var(--dm-border-panel);
-    border-radius: 20px;
-    padding: 6px 12px 6px 10px;
-    box-shadow: 0 2px 8px var(--dm-node-shadow);
+    border-right: none;
+    border-radius: 8px 0 0 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: all;
+    box-shadow: -2px 0 8px var(--dm-node-shadow);
+    color: var(--dm-text-secondary);
+}
+
+.dm-sidebar__tab:hover {
+    background: var(--dm-accent-dim);
+    color: var(--dm-accent);
+}
+
+.dm-sidebar__tab-chevron {
+    font-size: 18px;
+    line-height: 1;
+    transition: transform 0.22s ease;
+    display: inline-block;
+}
+
+.dm-sidebar__tab-chevron--open {
+    transform: rotate(180deg);
+}
+
+.dm-sidebar__resize {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 4px;
+    height: 100%;
+    cursor: ew-resize;
+    z-index: 1;
+    pointer-events: all;
+}
+
+.dm-sidebar__resize:hover,
+.dm-sidebar__resize:active {
+    background: var(--dm-accent);
+    opacity: 0.4;
+}
+
+.dm-sidebar__body {
+    flex: 1;
+    background: var(--dm-bg-panel);
+    border-left: 1px solid var(--dm-border-panel);
+    padding: 20px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    pointer-events: all;
+    box-shadow: -4px 0 16px var(--dm-node-shadow);
+}
+
+.dm-sidebar__divider {
+    height: 1px;
+    background: var(--dm-border-subtle);
+    margin: 16px 0;
+    flex-shrink: 0;
+}
+
+/* ── Chat ── */
+.dm-chat {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.dm-chat__messages {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding-right: 2px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--dm-scrollbar-thumb) transparent;
+}
+
+.dm-chat__empty {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 12px;
+    color: var(--dm-text-muted);
+    line-height: 1.5;
+    padding: 24px 8px;
+}
+
+/* Message bubbles (for when we wire it up) */
+.dm-chat__msg {
+    font-size: 12.5px;
+    line-height: 1.5;
+    padding: 8px 10px;
+    border-radius: 8px;
+    max-width: 100%;
+    word-break: break-word;
+}
+
+.dm-chat__msg--user {
+    background: var(--dm-accent-dim);
+    color: var(--dm-text-primary);
+    border: 1px solid var(--dm-accent-mid);
+    align-self: flex-end;
+}
+
+.dm-chat__msg--ai {
+    background: var(--dm-node-item-bg);
+    color: var(--dm-text-primary);
+    border: 1px solid var(--dm-border-subtle);
+    align-self: flex-start;
+}
+
+.dm-chat__input-row {
+    display: flex;
+    gap: 6px;
+    align-items: flex-end;
+    flex-shrink: 0;
+}
+
+.dm-chat__input {
+    flex: 1;
+    resize: none;
+    background: var(--dm-node-item-bg);
+    border: 1px solid var(--dm-border-panel);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12.5px;
+    font-family: inherit;
+    color: var(--dm-text-primary);
+    line-height: 1.45;
+    outline: none;
+    scrollbar-width: thin;
+}
+
+.dm-chat__input:focus {
+    border-color: var(--dm-accent);
+    background: var(--dm-bg-panel);
+}
+
+.dm-chat__input::placeholder {
+    color: var(--dm-text-muted);
+}
+
+.dm-chat__send {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    border: none;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.15s ease, transform 0.1s ease;
+}
+
+.dm-chat__send:hover {
+    opacity: 0.88;
+    transform: translateY(-1px);
+}
+
+.dm-sidebar__section-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--dm-section-label);
+    margin-bottom: 12px;
 }
 
 /* ── Canvas fills the whole shell ── */

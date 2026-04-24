@@ -1,6 +1,6 @@
 # StatViz — Current System Structure & Details
 
-> **Last Updated:** April 2026
+> **Last Updated:** April 24, 2026
 > **Author:** Dipan Bag (bag00003@umn.edu)
 > **Project:** UMN Capstone Project, Spring 2026
 > **Hosted At:** GitHub Pages via `actions/deploy-pages`, route `/mindmapper/statviz`
@@ -22,137 +22,165 @@
 11. [Statistics Engine](#11-statistics-engine)
 12. [CSV Parser](#12-csv-parser)
 13. [Layout Engine](#13-layout-engine)
-14. [Theming System](#14-theming-system)
-15. [Key Workflows](#15-key-workflows)
-16. [Edge & Handle Conventions](#16-edge--handle-conventions)
-17. [API Key Handling](#17-api-key-handling)
-18. [Deployment](#18-deployment)
+14. [Right Sidebar: Theme + Ask AI](#14-right-sidebar-theme--ask-ai)
+15. [Theming System](#15-theming-system)
+16. [Key Workflows](#16-key-workflows)
+17. [Edge & Handle Conventions](#17-edge--handle-conventions)
+18. [API Key Handling](#18-api-key-handling)
+19. [Deployment](#19-deployment)
 
 ---
 
 ## 1. Project Overview
 
-StatViz is a canvas-based, node-driven visual workspace for exploratory data analysis and hypothesis testing. Users upload a CSV file and receive an interactive graph where AI-generated insights, statistical hypotheses, and test results are represented as connected nodes on an infinite canvas.
+StatViz is a browser-only, node-based exploratory data analysis workspace. Users upload a CSV dataset, inspect its summary, generate AI-assisted insights, turn those insights into statistical hypotheses, run tests in-browser when possible, and capture results as connected nodes on a React Flow canvas.
 
-The application is fully client-side — all CSV parsing, statistics, and AI calls happen in the browser. There is no backend.
+The current system is centered around a **data analysis pipeline**:
 
-**Core capabilities:**
-- CSV upload with automatic type inference and column statistics
-- AI-generated exploratory insights backed by inline charts
-- One-click hypothesis generation from any insight
-- In-browser statistical testing (Pearson, Welch t-test, Chi-square) with AI fallback
-- Custom hypothesis workflow: free-text → AI refinement → test suggestions → run
-- Dark/light theme, persistent OpenAI key via sessionStorage
+1. Upload dataset
+2. Parse schema and compute column statistics
+3. Auto-generate a dataset description
+4. Expand into a dataset summary node
+5. Generate AI insights
+6. Generate or author hypotheses
+7. Run statistical tests or AI-assisted fallback estimates
+8. Query the full evolving analysis from the right-side "Ask AI" chat
+
+There is no backend. CSV parsing, statistics, graph state, charts, and OpenAI requests all happen client-side in the browser.
+
+**Current headline capabilities:**
+- CSV upload by drag-and-drop or click-to-upload popup
+- Dataset description generation from schema
+- Summary node with completeness chart and per-column charts
+- AI-generated insight nodes
+- AI-generated hypothesis nodes
+- Custom free-text hypothesis workflow
+- In-browser statistical testing using `jstat`
+- AI fallback for unsupported tests
+- Right sidebar with dark mode toggle and dataset-aware AI chat
+- Client-side tool calling over the live dataset and analysis context
 
 ---
 
 ## 2. High-Level Architecture
 
-```
+```text
 Browser
 │
-├── React Router (BrowserRouter, basename = /mindmapper/)
-│   ├── /              → LandingPage
-│   └── /statviz       → AppShell → DataModeApp
+├── React Router
+│   ├── /          → LandingPage
+│   └── /statviz   → AppShell → modes/data/DataModeApp
 │
 ├── DataModeApp
-│   ├── Manages: theme, CSV drag-drop, upload popup visibility
-│   ├── Mounts: ApiKeyModal (gates the app until key is provided)
-│   └── Mounts: DataCanvas (React Flow canvas)
+│   ├── Handles theme state
+│   ├── Handles CSV drag/drop and upload popup
+│   ├── Mounts right sidebar (dark mode + Ask AI)
+│   ├── Mounts DataCanvas
+│   └── Gates usage through ApiKeyModal
 │
 ├── Zustand Store (useDataModeStore)
-│   └── Single source of truth: nodes, edges, dataset, insights, apiKey
+│   ├── Graph state: nodes, edges, selection
+│   ├── Dataset state: metadata, spec, description
+│   └── Analysis registry: dataset, insights, hypotheses, results
 │
 ├── DataCanvas (React Flow)
-│   ├── Syncs nodes/edges bidirectionally with Zustand
-│   ├── Runs Dagre auto-layout on graph changes
-│   └── Renders 10 custom node types
+│   ├── Renders custom nodes
+│   ├── Syncs graph updates with Zustand
+│   └── Runs Dagre auto-layout on structural changes
 │
-└── API Services (OpenAI gpt-4o-mini, direct fetch)
-    ├── insightService     — dataset → insights
-    ├── hypothesisService  — insight → hypothesis
-    ├── statisticsService  — hypothesis → test result (jstat or AI)
-    ├── chartTypeService   — insight → chart type + exact columns
-    ├── customHypothesisService — free text → refined hypothesis + test suggestions
-    └── descriptionService — dataset → plain-language description
+├── Data Nodes
+│   ├── Dataset → Summary
+│   ├── Summary → Insights
+│   ├── Insight → Hypothesis
+│   ├── Hypothesis → Result
+│   └── Summary → Custom Hypothesis → Result
+│
+└── AI / Stats Layer
+    ├── descriptionService
+    ├── insightService
+    ├── hypothesisService
+    ├── customHypothesisService
+    ├── chartTypeService
+    ├── statisticsService
+    └── chatTools + ChatPanel
 ```
 
 ---
 
 ## 3. File & Directory Structure
 
-```
+```text
 mindmapper/
-├── README.md
 ├── Current_System_Structure_And_Details.md   ← THIS FILE
+├── README.md
 ├── docs/
-├── .github/workflows/deploy.yml              ← CI/CD: build + deploy to GitHub Pages
+├── .github/workflows/deploy.yml
 └── frontend/
-    ├── index.html                            ← HTML shell; SPA decode script for GH Pages routing
-    ├── vite.config.js                        ← base: '/mindmapper/', react plugin
-    ├── .env                                  ← Not used in prod (key comes from user at runtime)
+    ├── index.html
+    ├── vite.config.js
+    ├── package.json
     ├── public/
-    │   └── 404.html                          ← Encodes path to ?p= for SPA routing on GH Pages
+    │   └── 404.html
     └── src/
-        ├── main.jsx                          ← Router setup; BrowserRouter with basename
-        ├── App.jsx                           ← Thin wrapper
-        ├── index.css                         ← Global: Inter font, box-sizing, root sizing
-        │
-        ├── app/
-        │   ├── AppShell.jsx/.css             ← Full-viewport container for Data Mode
-        │   └── DataModeApp.jsx/.css          ← Data Mode root: drag-drop, theme, canvas mount
-        │
-        ├── pages/
-        │   └── LandingPage.jsx/.css          ← Marketing page: 3-column hero, feature list
-        │
+        ├── main.jsx
+        ├── App.jsx
+        ├── index.css
         ├── constants/
-        │   ├── api.js                        ← OPENAI_API_URL, getApiKey()
-        │   └── models.js                     ← OPENAI_MODEL = 'gpt-4o-mini'
-        │
+        │   ├── api.js
+        │   └── models.js
+        ├── app/
+        │   ├── AppShell.jsx/.css
+        │   └── DataModeApp.jsx/.css          ← legacy scaffold, not the active route entry
+        ├── pages/
+        │   └── LandingPage.jsx/.css
         ├── modes/
+        │   ├── qa/
+        │   │   └── QAModeApp.jsx             ← legacy / separate mode work
         │   └── data/
+        │       ├── DataModeApp.jsx/.css      ← active Data Mode root
         │       ├── store/
-        │       │   └── useDataModeStore.js   ← Zustand store (all Data Mode state)
-        │       │
+        │       │   ├── useDataModeStore.js
+        │       │   └── analysisContext.js
         │       ├── components/
-        │       │   ├── DataCanvas.jsx        ← React Flow wrapper + Dagre layout engine
-        │       │   ├── UploadPopup.jsx/.css  ← Click-triggered CSV upload dialog
-        │       │   └── ApiKeyModal.jsx/.css  ← Blocking modal: user enters OpenAI key
-        │       │
+        │       │   ├── DataCanvas.jsx
+        │       │   ├── UploadPopup.jsx/.css
+        │       │   ├── ApiKeyModal.jsx/.css
+        │       │   ├── ChatPanel.jsx/.css
+        │       │   └── DatasetSidebar.jsx/.css   ← present but not currently mounted
         │       ├── nodes/
         │       │   ├── DatasetNode.jsx
         │       │   ├── DatasetSummaryNode.jsx
-        │       │   ├── ColumnNode.jsx
         │       │   ├── InsightNode.jsx
         │       │   ├── HypothesisNode.jsx
-        │       │   ├── TestNode.jsx
+        │       │   ├── CustomHypothesisNode.jsx
         │       │   ├── ResultNode.jsx
+        │       │   ├── ColumnNode.jsx
+        │       │   ├── TestNode.jsx
         │       │   ├── InterpretationNode.jsx
         │       │   ├── NextStepNode.jsx
-        │       │   ├── CustomHypothesisNode.jsx
-        │       │   ├── ColumnChart.jsx       ← Inline charts per column (histogram, box, bar)
-        │       │   ├── nodes.css             ← All node styles + CSS variables
-        │       │   └── index.js              ← nodeTypes map passed to React Flow
-        │       │
-        │       ├── nodes/charts/
-        │       │   ├── InsightChart.jsx      ← Chart renderer for insight nodes
-        │       │   ├── ResultChart.jsx       ← Chart renderer for result nodes
-        │       │   ├── chartData.js          ← Pure data-transform helpers
-        │       │   └── charts.css
-        │       │
+        │       │   ├── ColumnChart.jsx
+        │       │   ├── charts/
+        │       │   │   ├── InsightChart.jsx
+        │       │   │   ├── ResultChart.jsx
+        │       │   │   ├── chartData.js
+        │       │   │   └── charts.css
+        │       │   ├── nodes.css
+        │       │   └── index.js
         │       ├── api/
+        │       │   ├── descriptionService.js
         │       │   ├── insightService.js
         │       │   ├── hypothesisService.js
-        │       │   ├── statisticsService.js
-        │       │   ├── chartTypeService.js
         │       │   ├── customHypothesisService.js
-        │       │   └── descriptionService.js
-        │       │
+        │       │   ├── chartTypeService.js
+        │       │   ├── statisticsService.js
+        │       │   └── chatTools.js
         │       └── utils/
-        │           ├── csvParser.js          ← CSV → metadata + spec
-        │           └── layoutGraph.js        ← Dagre layout helper
-        │
-        └── services/                         ← Legacy Q&A mode (Perplexity-based, unused)
+        │           ├── csvParser.js
+        │           ├── layoutGraph.js
+        │           ├── insightEngine.js       ← older helper / not central to current flow
+        │           └── mockGraph.js
+        ├── components/                        ← older Q&A/canvas components
+        └── services/                          ← older OpenAI / Perplexity service layer
 ```
 
 ---
@@ -162,71 +190,99 @@ mindmapper/
 | Package | Role |
 |---------|------|
 | React 19 | UI framework |
-| React Router v7 | Client-side routing |
-| @xyflow/react | Infinite canvas, node graph, edge routing |
-| Zustand | Global state management |
-| Recharts | Chart components (scatter, bar, etc.) |
-| jstat | In-browser statistical tests |
-| @dagrejs/dagre | Hierarchical graph auto-layout |
-| Vite | Build tool, dev server |
+| React Router DOM 7 | Client-side routing |
+| `@xyflow/react` | Infinite canvas, nodes, edges, handles |
+| Zustand | Central app state |
+| Recharts | Node charts and mini charts |
+| `jstat` | In-browser statistical tests |
+| `@dagrejs/dagre` | Auto-layout engine |
+| `react-markdown` | Markdown rendering in chat assistant responses |
+| Vite | Build and dev tooling |
 
-**External APIs (raw fetch, no SDK):**
+**External API endpoint used by the current Data Mode flow:**
 
 | Service | Endpoint | Purpose |
 |---------|----------|---------|
-| OpenAI | `api.openai.com/v1/chat/completions` | All AI features |
+| OpenAI | `https://api.openai.com/v1/chat/completions` | Dataset description, insights, hypotheses, chart resolution, custom hypothesis help, AI fallback tests, Ask AI chat |
 
-Model used everywhere: `gpt-4o-mini` (defined in `constants/models.js`).
+**Model currently configured:** `gpt-4o-mini`
+
+Note: `package.json` still includes the `openai` npm package, but the active data-mode services use raw `fetch`, not the SDK.
 
 ---
 
 ## 5. Routing & Entry Points
 
-Routing is configured in `main.jsx` using `BrowserRouter` with `basename={import.meta.env.BASE_URL}`. The `BASE_URL` resolves to `/mindmapper/` in production (set via `vite.config.js`) and `/` in development.
+Routing is defined in `frontend/src/main.jsx` using `BrowserRouter` with `basename={import.meta.env.BASE_URL}`.
 
 **Routes:**
-- `/` → `<LandingPage />` — marketing page with hero, feature descriptions, tutorial
-- `/statviz` → `<AppShell />` → `<DataModeApp />` — the full application
+- `/` → `LandingPage`
+- `/statviz` → `AppShell` → `modes/data/DataModeApp`
 - `*` → redirect to `/`
 
-**GitHub Pages SPA routing:** GitHub Pages returns a 404 for deep routes. `public/404.html` encodes the path into a query string and redirects to `index.html`, which decodes and pushes the correct history entry before React Router mounts. This is a standard workaround for SPAs on GitHub Pages.
+**Important current detail:**
+- The active Data Mode implementation is `frontend/src/modes/data/DataModeApp.jsx`
+- `frontend/src/app/DataModeApp.jsx` is an older scaffold and is not what the `/statviz` route mounts today
+
+**GitHub Pages SPA routing:**
+- `frontend/public/404.html` rewrites deep links into a `?p=` query parameter
+- `frontend/index.html` decodes that query before React mounts
+- This allows direct navigation to `/mindmapper/statviz`
 
 ---
 
 ## 6. Zustand Store
 
-**File:** `src/modes/data/store/useDataModeStore.js`
+**File:** `frontend/src/modes/data/store/useDataModeStore.js`
 
-All Data Mode state lives here. Components access slices via selector functions, avoiding unnecessary re-renders.
+The store is the source of truth for both the visual graph and the logical analysis record.
 
-**State shape:**
+### Core state
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `nodes` | `Node[]` | React Flow node array |
-| `edges` | `Edge[]` | React Flow edge array |
-| `selectedNode` | `Node \| null` | Currently selected node |
-| `datasetMetadata` | `object \| null` | `{ name, rows, columns, source }` |
-| `datasetSpec` | `object \| null` | Full parsed schema (see CSV Parser section) |
-| `insightSuggestions` | `object[]` | Raw AI insight objects |
-| `datasetDescription` | `string` | AI-generated or user-edited dataset description |
-| `workflowStep` | `string` | Pipeline progress indicator |
-| `apiKey` | `string` | OpenAI key; initialised from `sessionStorage` |
+| `nodes` | `Node[]` | React Flow nodes |
+| `edges` | `Edge[]` | React Flow edges |
+| `selectedNode` | `Node \| null` | Current selection |
+| `datasetMetadata` | `object \| null` | File-level metadata |
+| `datasetSpec` | `object \| null` | Parsed schema and raw values |
+| `insightSuggestions` | `object[]` | Latest AI insight payload |
+| `datasetDescription` | `string` | AI-generated or user-edited description |
+| `workflowStep` | `string` | Current stage such as `idle`, `dataset`, `insight` |
+| `apiKey` | `string` | Session key from `sessionStorage` |
 
-**Actions:**
+### Analysis registry
+
+The app no longer relies only on `node.data` when preparing AI context. It also keeps a normalized analysis registry:
+
+| Key | Type | Purpose |
+|-----|------|---------|
+| `dataset` | object \| null | Clean dataset summary for prompts |
+| `insights` | `Map<nodeId, InsightRecord>` | Insight records independent of UI rendering |
+| `hypotheses` | `Map<nodeId, HypothesisRecord>` | Hypothesis status and metadata |
+| `results` | `Map<nodeId, ResultRecord>` | Test outcomes and AI-assist flags |
+
+This registry is assembled into a clean prompt object by `analysisContext.js`.
+
+### Important actions
 
 | Action | Description |
 |--------|-------------|
-| `setNodes(fn\|arr)` / `setEdges(fn\|arr)` | Replace arrays or use updater function |
-| `addNode(node)` / `addEdge(edge)` | Append to arrays |
-| `removeNode(id)` | Deletes node and all connected edges |
-| `updateNodeData(id, patch)` | Merges patch into `node.data` for a specific node |
-| `setSelectedNode(node\|null)` | Track selection |
-| `setDataset({ metadata, spec })` | Load parsed CSV result |
-| `resetGraph()` | Clear nodes, edges, description |
-| `setInsights(arr)` | Store AI insight array |
-| `setDatasetDescription(text)` | Update description |
-| `setApiKey(key)` | Save key to state and `sessionStorage('sv_openai_key')` |
+| `setNodes`, `setEdges` | Replace arrays or use updater functions |
+| `addNode`, `addEdge` | Append graph items |
+| `removeNode` | Remove node and all connected edges |
+| `updateNodeData` | Patch one node's `data` |
+| `setDataset` | Save parsed metadata/spec and build dataset record |
+| `setDatasetDescription` | Update free-text description and mirror into dataset record |
+| `setInsights` | Store raw insight suggestions and move workflow step forward |
+| `setApiKey` | Persist key to `sessionStorage` and state |
+| `resetGraph` | Clear graph and analysis registry for a new upload |
+| `addInsightRecord` | Register insight in normalized analysis map |
+| `resolveInsightChart` | Save resolved chart type/columns and patch node data |
+| `addHypothesisRecord` | Register generated or custom hypothesis |
+| `updateHypothesisStatement` | Keep inline edits in sync between node and registry |
+| `updateHypothesisStatus` | Persist accepted/rejected/pending status |
+| `addResultRecord` | Register test result in analysis map |
 
 ---
 
@@ -234,180 +290,333 @@ All Data Mode state lives here. Components access slices via selector functions,
 
 ### DataModeApp
 
-Entry point for the `/statviz` route. Owns the theme state (`light | dark`) which it applies as a `data-theme` attribute on `<html>`, triggering CSS variable re-resolution. Handles CSV ingestion: both drag-and-drop onto the canvas and click-to-upload via `UploadPopup`. On file drop, it calls `parseCSV()` and stores the result in Zustand via `setDataset()`, then creates the initial Dataset node.
+**File:** `frontend/src/modes/data/DataModeApp.jsx`
 
-Renders `ApiKeyModal` unconditionally — the modal gates itself based on whether `apiKey` is set in the store.
+This is the real Data Mode root.
+
+It is responsible for:
+- theme state (`light` / `dark`)
+- whole-shell drag-and-drop CSV upload
+- click-to-upload popup positioning
+- right sidebar open/close and resize behavior
+- mounting `ChatPanel`
+- mounting `DataCanvas`
+- gating the app with `ApiKeyModal`
+
+The right sidebar lives directly inside this component and currently contains:
+- a dark mode toggle
+- an "Ask AI" section with `ChatPanel`
 
 ### DataCanvas
 
-React Flow wrapper. Syncs nodes and edges bidirectionally with Zustand. Contains a `LayoutEngine` sub-component that watches node/edge count and a "summary collapsed" flag; when either changes it runs Dagre layout and pushes the updated positions back into Zustand.
+**File:** `frontend/src/modes/data/components/DataCanvas.jsx`
 
-The canvas accepts `nodeTypes` (the registered map from `nodes/index.js`) and `onPaneClick` callback from `DataModeApp`. It passes `fitView` after layout, giving a clean initial view on each graph change.
+Wraps `ReactFlow` and synchronizes all node/edge changes with Zustand.
 
-### ApiKeyModal
-
-A blocking overlay (`position: fixed; inset: 0`) that appears when `apiKey` is empty. Has a password input and a "Start using StatViz" button (disabled until non-empty). Calls `setApiKey()` on submit. No dismiss — the user must enter a key. The rationale: the app makes no AI calls without a key, so blocking is correct.
+It includes:
+- `Background`
+- `Controls`
+- `MiniMap`
+- a local `LayoutEngine` helper component
 
 ### UploadPopup
 
-A small positioned dialog triggered by clicking the empty canvas. Presents a file input for CSV selection as an alternative to drag-and-drop.
+**File:** `frontend/src/modes/data/components/UploadPopup.jsx`
+
+Appears when the user clicks the empty canvas before uploading a dataset. It supports both clicking a file input and dropping a CSV onto the popup itself. On success it:
+
+1. parses the CSV
+2. resets prior graph state
+3. stores dataset metadata/spec
+4. spawns the initial dataset node
+
+### ApiKeyModal
+
+**File:** `frontend/src/modes/data/components/ApiKeyModal.jsx`
+
+Blocking modal shown when `apiKey` is empty. The copy explicitly tells the user the key is stored only for the browser session and sent directly to OpenAI.
+
+### ChatPanel
+
+**File:** `frontend/src/modes/data/components/ChatPanel.jsx`
+
+This is the mounted "Ask AI" experience in the right sidebar. It:
+- streams assistant responses token-by-token
+- supports OpenAI tool calling
+- renders tool outputs as cards, tables, and small charts
+- uses `datasetSpec` plus `buildAnalysisContext()` for dataset-aware conversations
+
+Tool result cards currently include:
+- column stats
+- sample values
+- statistical test outputs
+- filtered descriptive comparisons
+- correlation matrix heatmap
+- analysis summary metrics
 
 ---
 
 ## 8. Node Types Reference
 
-All 10 node types are registered in `nodes/index.js` and passed to React Flow as the `nodeTypes` prop. Every node imports `nodes.css` and uses the shared `.dm-node` structure: header strip + body + actions footer.
+The active node registry in `frontend/src/modes/data/nodes/index.js` contains 10 node types:
+
+| Type key | Component | Current usage |
+|----------|-----------|---------------|
+| `dataset` | `DatasetNode` | Active |
+| `datasetsummary` | `DatasetSummaryNode` | Active |
+| `insight` | `InsightNode` | Active |
+| `hypothesis` | `HypothesisNode` | Active |
+| `customhypothesis` | `CustomHypothesisNode` | Active |
+| `result` | `ResultNode` | Active |
+| `column` | `ColumnNode` | Present, lightly used |
+| `test` | `TestNode` | Present, lightly used |
+| `interpretation` | `InterpretationNode` | Present, lightly used |
+| `nextstep` | `NextStepNode` | Present, lightly used |
 
 ### DatasetNode
-Created immediately after CSV upload. Displays filename, row count, column count. Has a "View Summary" button that calls `addNode` to create a `DatasetSummaryNode` and links them with an edge.
+
+Created immediately after upload. Shows filename, row count, column count, source, and an editable AI-generated dataset description textarea.
+
+Its main action is `View Summary` / `Expand Summary` / `Collapse Summary`, which creates or toggles the paired `DatasetSummaryNode`.
 
 ### DatasetSummaryNode
-The main control hub. Renders differently depending on dataset size: "dashboard" mode (< 10 columns) shows inline per-column charts; "expanded" mode shows a scrollable list. Contains three action buttons:
-- **Generate Insights** — calls `fetchInsights()` → spawns Insight nodes. Has a dedicated named source handle (`insights-out`) so edges originate from that button's position.
-- **Custom Hypothesis** — spawns a `CustomHypothesisNode`. Has its own named source handle (`custom-hyp-out`).
-- **Explore Columns** — currently no-op (placeholder).
 
-The node also renders an AI-generated or user-editable dataset description.
+Acts as the main orchestration node for exploration.
+
+Current behaviors:
+- collapsed view: compact row/column counts only
+- expanded view: completeness chart plus per-column details
+- dashboard mode when `columnCount < 10`
+- scrollable expandable column list when dataset is wider
+
+Main actions:
+- `Generate Insights`
+- `Custom Hypothesis`
+- `Explore Columns` (currently placeholder / no-op)
 
 ### InsightNode
-Represents one AI-generated insight. Header colour changes by insight type (teal = relationship, amber = group_difference, rose = distribution_issue, orange = outlier_candidate). Displays title, description, reason, and column tags.
 
-On mount, fires a `useEffect` that calls `resolveChartType()` (AI) to determine both the chart type and the exact spec column names to use. This resolves even when `chart_type` was set at generation time, because column names in the insight might differ from the spec. Stores `resolvedChart` and `resolvedColumns` in local state and passes them to `InsightChart`.
+Represents one AI-generated analytical insight. It shows:
+- title
+- description
+- rationale
+- involved column tags
+- an inline `InsightChart`
 
-Has a "Generate Hypothesis" button that calls `fetchHypothesis()` and spawns a `HypothesisNode`.
+On first mount it calls `resolveChartType()` so the chart uses exact dataset column names, then stores the resolved chart metadata in both local state and the analysis registry.
+
+Action:
+- `Generate Hypothesis`
 
 ### HypothesisNode
-Displays a testable hypothesis with label (H1, H2…), statement (click-to-edit inline), type badge, variable tags, suggested test, assumption notes. Status toggles between `pending | accepted | rejected`.
 
-"Run Test" calls `runTest()` (jstat). If the test is unsupported, shows a consent banner offering AI fallback. Either path spawns a `ResultNode` via `spawnResult()`.
+Represents a generated statistical hypothesis. It supports:
+- inline statement editing
+- accept / reject status
+- running a statistical test
+- AI fallback consent when the test is unsupported
+
+It also records its edits and status changes back into the normalized analysis map.
 
 ### CustomHypothesisNode
-Three-phase UI, all rendered progressively (nothing disappears while AI is working):
-1. **Free text input** + "Refine →" button → calls `refineHypothesis()` → refined statement appears below
-2. **Refined statement** (click-to-edit) + "Suggest Tests →" button → calls `fetchTestSuggestions()` → test cards appear below
-3. **Test selection cards** → "Run Test" → `runTest()` or AI fallback → `ResultNode` spawned
 
-"New Hypothesis" resets all local state. "Dismiss" removes the node.
+Implements a three-stage custom workflow:
+
+1. free-text user hypothesis
+2. AI-refined hypothesis statement
+3. AI-suggested candidate tests
+
+From there the user selects a test and runs it through the same stats/fallback system used by normal hypotheses.
 
 ### ResultNode
-Displays the outcome of a statistical test: method name, significance verdict, test statistic, p-value, plain-English summary. Renders a `ResultChart` with significance overlay (green = significant, red = not). Shows "AI-assisted" badge when result came from AI fallback.
 
-### ColumnNode, TestNode, InterpretationNode, NextStepNode
-Minimal nodes not yet heavily used in the current workflows. They exist in the type registry for potential future use.
+Displays:
+- method name
+- significance verdict
+- statistic
+- p-value
+- plain-English result summary
+- `AI-assisted` badge when applicable
+- inline `ResultChart`
 
 ---
 
 ## 9. Charts System
 
-Charts are used in two contexts: inside `InsightNode` (exploratory, accent-coloured) and inside `ResultNode` (significance-overlaid, green/red).
+Charts are split between reusable chart-data helpers and React renderers.
 
-### Chart Types
+### Main files
 
-| `chart_type` value | Component | Requirements | Notes |
-|--------------------|-----------|--------------|-------|
-| `scatter` | `ScatterViz` / `ScatterResultViz` | 2 numeric columns | ResultViz adds regression line coloured by significance |
-| `grouped_bar` | `GroupedBarViz` / `GroupedBarResultViz` | 1 categorical + 1 numeric | Shows mean ± std per group; Result adds `* p < 0.05` reference line |
-| `histogram` | `HistogramViz` / `HistogramResultViz` | 1 numeric column | Result version tints bars by significance |
-| `histogram_outlier` | `HistogramViz` with `markOutliers` | 1 numeric column | Bars beyond Q3+1.5×IQR coloured red |
-| `category_frequency` | `CategoryFrequencyViz` | 1 categorical column | Counts per value; up to 8 bars |
-| `correlation_heatmap` | `CorrelationHeatmap` / `CorrelationHeatmapResult` | 3+ numeric columns | Pure SVG; Result version adds a significance-coloured border |
+| File | Purpose |
+|------|---------|
+| `nodes/ColumnChart.jsx` | Summary-node completeness, histogram, box, and categorical charts |
+| `nodes/charts/InsightChart.jsx` | Charts inside insight nodes |
+| `nodes/charts/ResultChart.jsx` | Charts inside result nodes |
+| `nodes/charts/chartData.js` | Pure data transforms used by charts and chat tools |
 
-### chartData.js
+### Supported chart types in the active AI flows
 
-Pure data-transform helpers (no React, no side effects). Key functions:
+| `chart_type` | Typical use |
+|--------------|-------------|
+| `scatter` | numeric vs numeric relationships |
+| `grouped_bar` | categorical vs numeric group differences |
+| `histogram` | univariate numeric distribution |
+| `histogram_outlier` | numeric distribution with outlier emphasis |
+| `correlation_heatmap` | 3+ numeric variable correlation overview |
+| `category_frequency` | single categorical column frequency chart |
 
-- `findCols(spec, colNames)` — looks up column objects from spec by name array; splits into `numeric` and `categorical`
-- `getScatterData(col1, col2, maxPoints=250)` — subsampled scatter points
-- `getHistogramData(col)` — maps pre-computed histogram bins to chart format
-- `getGroupBarData(catCol, numCol, maxGroups=7)` — computes mean + std per group
-- `getOutlierFence(col)` — Q3 + 1.5 × IQR from stored `stats.q1/q3`
-- `getRegressionLine(scatterData)` — 30 evenly-spaced points along OLS line
-- `getCorrelationMatrix(spec)` — Pearson r matrix for all non-ID numeric columns
+### Notable chart-data helpers
 
-ID-like columns are automatically excluded from the correlation matrix using a heuristic: column name matches `/^id$|_id$|^id_/`, or > 95% of values are unique (indicating a key column).
+`chartData.js` currently provides helper functions such as:
+- `getScatterData`
+- `getGroupBarData`
+- `getCorrelationMatrix`
 
-### InsightChart
+The correlation matrix helper excludes obvious identifier-like numeric columns using name and uniqueness heuristics so ID columns do not dominate the heatmap.
 
-Receives `chart_type` and `columns` (both resolved by AI via `chartTypeService`). Since AI returns exact spec column names, `InsightChart` uses `findCols` with exact matching — no fuzzy logic needed. If `chart_type` is falsy (node still loading), renders nothing.
+### ChatPanel chart reuse
 
-### ResultChart
-
-Same structure as `InsightChart` but each chart variant also accepts `significant` (boolean) and `aiAssisted` (boolean) to apply significance overlays and badges.
+The sidebar chat also reuses chart-data helpers to render:
+- small scatter plots
+- small grouped bar charts
+- mini histograms
+- categorical frequency bars
+- filtered subset comparison bars
+- a compact SVG correlation heatmap
 
 ---
 
 ## 10. API Services Layer
 
-All services use raw `fetch` against the OpenAI chat completions endpoint. All requests use `response_format: { type: 'json_object' }` except `chartTypeService` which uses plain text.
+All active services use raw `fetch` against the OpenAI Chat Completions endpoint. The key is read at call time via `getApiKey()`, not captured once at module import.
 
-The API key is read at call time via `getApiKey()` (not at module load), so key changes during a session take effect immediately.
+### `descriptionService.js`
 
-ID-like columns (name matches `id`/`_id`/`index`/`row`, or high uniqueness ratio) are filtered from prompts in `insightService` and `chartTypeService` to avoid polluting AI suggestions with meaningless columns.
+`fetchDatasetDescription(metadata, spec)` returns a short one-sentence dataset description used in `DatasetNode`.
 
-### insightService — `fetchInsights(metadata, spec, description?)`
-Sends dataset schema (column names, types, stats) to OpenAI. Prompt instructs the model to return 3–5 exploratory insights, each with a `chart_type` field chosen from the supported list. Temperature 0.4, max 1200 tokens.
+### `insightService.js`
 
-Returns `Insight[]`, each stamped with a unique `id`.
+`fetchInsights(metadata, spec, description)` returns 3-5 structured insights. The prompt filters obvious ID-like columns before sending schema details to OpenAI.
 
-### hypothesisService — `fetchHypothesis(insight, metadata, spec, label, description?)`
-Converts one insight into a testable hypothesis. Only sends stats for columns relevant to that insight (prompt size optimisation). Temperature 0.3, max 700 tokens.
+Each insight includes:
+- `title`
+- `type`
+- `description`
+- `columns_involved`
+- `reason`
+- `chart_type`
 
-Returns one `Hypothesis` object with all fields needed to run a test and display the node.
+### `hypothesisService.js`
 
-### chartTypeService — `resolveChartType(insight, spec)`
-Called by `InsightNode` on mount. Sends insight metadata + full (filtered) column list to AI. AI returns `{ chart_type, columns }` where `columns` are exact names from the spec — this solves the mismatch between AI-generated column names in insight objects and the actual spec column names.
+`fetchHypothesis(insight, metadata, spec, label, description)` converts one insight into a formal testable hypothesis.
 
-Temperature 0, max 60 tokens, JSON object format.
+The prompt only includes schema rows for columns involved in that insight to keep prompt size focused.
 
-### customHypothesisService
+### `customHypothesisService.js`
 
-**`refineHypothesis(text, metadata, spec, description?)`** — Turns informal user text into a formal hypothesis statement. Returns `{ statement, variables[] }`. Temperature 0.3, max 200 tokens.
+Exports:
+- `refineHypothesis(text, metadata, spec, description)`
+- `fetchTestSuggestions(statement, variables, metadata, spec, description)`
 
-**`fetchTestSuggestions(statement, variables, metadata, spec, description?)`** — Given a refined hypothesis, returns 2–3 test suggestions. Each has `test_name, type, description, variables[], chart_type`. Temperature 0.3, max 700 tokens.
+This powers the free-text custom hypothesis workflow.
 
-### statisticsService
+### `chartTypeService.js`
 
-Described in the Statistics Engine section below.
+`resolveChartType(insight, spec)` asks OpenAI to select:
+- the best chart type
+- the exact column names from the actual spec
 
-### descriptionService
-Generates a plain-language description of the dataset from its metadata and column stats. Used in `DatasetSummaryNode` as an AI-written summary that the user can also manually edit.
+This is an important repair layer because AI-generated insights may use slightly mismatched column names unless normalized.
+
+### `statisticsService.js`
+
+Contains both:
+- browser-side statistical test execution
+- AI fallback result estimation
+
+### `chatTools.js`
+
+This is the most important newer addition missing from earlier documentation.
+
+It exports:
+- `TOOL_DEFINITIONS`
+- `streamChat(userMessages, spec, callbacks)`
+- `executeTool(name, args, spec)`
+
+Current client-side tools are:
+
+| Tool name | Purpose |
+|-----------|---------|
+| `get_column_stats` | Column type/stats/top values |
+| `get_column_values` | Raw value sample from one column |
+| `run_statistical_test` | Run supported in-browser tests directly from chat |
+| `filter_and_describe` | Compare filtered subset stats vs full dataset |
+| `get_correlation_matrix` | Pairwise Pearson correlation matrix |
+| `get_analysis_summary` | Current dataset/insight/hypothesis/result summary |
+
+**Important implementation detail:** tool execution is entirely client-side against `datasetSpec` and the Zustand analysis registry. No extra OpenAI request is needed just to execute a tool.
+
+`chatTools.js` also builds a live system prompt containing:
+- current dataset summary
+- current insights
+- current hypotheses and statuses
+- current results
+- aggregate analysis stats
+
+That context comes from `buildAnalysisContext()` in `analysisContext.js`.
 
 ---
 
 ## 11. Statistics Engine
 
-**File:** `src/modes/data/api/statisticsService.js`
+**File:** `frontend/src/modes/data/api/statisticsService.js`
 
-### In-Browser Tests (jstat)
+### Native browser-side tests
 
-Three tests are implemented natively:
+The app currently computes these directly in-browser with `jstat`:
 
-| Test | When dispatched | Notes |
-|------|-----------------|-------|
-| Pearson correlation | `type === 'association'` or test name matches `/pearson/i` | Requires ≥ 2 numeric columns; computes t-statistic and two-tailed p-value |
-| Welch's two-sample t-test | `type === 'group_difference'` or test name matches `/t.?test/i` | Requires 1 categorical + 1 numeric; uses Welch–Satterthwaite df |
-| Chi-square test of independence | `type === 'categorical_relationship'` or test name matches `/chi.?square/i` | Requires ≥ 2 categorical; builds full contingency table |
+| Test | Trigger |
+|------|---------|
+| Pearson correlation | `association` hypotheses or test names matching Pearson |
+| Welch's two-sample t-test | `group_difference` / `distribution_difference` flows with 1 categorical + 1 numeric variable |
+| Chi-square test of independence | `categorical_relationship` flows with 2 categorical variables |
 
-Significance threshold: α = 0.05.
+### Unsupported-test handling
 
-### AI Fallback
+Tests matching patterns such as:
+- Spearman
+- Mann-Whitney
+- Wilcoxon
+- Kruskal
+- ANOVA
+- Friedman
 
-When the test name matches patterns like `/spearman|mann.?whitney|wilcoxon|kruskal|anova/i`, or when column types don't satisfy the native test requirements, `runTest()` returns `{ supported: false }`. The calling node (HypothesisNode or CustomHypothesisNode) shows a consent banner; if the user approves, `fetchTestResult()` is called.
+return `{ supported: false }` and trigger a user-facing consent step in the node UI before calling OpenAI for an estimated result.
 
-`fetchTestResult()` sends the hypothesis statement, suggested test, and relevant column stats to OpenAI, which estimates the result. The result is flagged `aiAssisted: true` and displayed with an amber "AI estimate" badge in the ResultNode.
+### AI fallback
 
-### Result Shape
+`fetchTestResult(hypothesis, metadata, spec, description)` asks OpenAI to estimate:
+- method
+- test statistic
+- p-value
+- significance
+- one-sentence explanation
 
-Both the native and AI paths return the same shape:
-```
+AI-estimated results are flagged with `aiAssisted: true`.
+
+### Result shape
+
+Native and AI-assisted outputs are normalized to the same structure:
+
+```json
 {
-  supported:   boolean,
-  method:      string,
-  stat:        number | null,
-  pValue:      number | null,
-  significant: boolean,
-  summary:     string,
-  aiAssisted:  boolean
+  "supported": true,
+  "method": "Pearson correlation",
+  "stat": 0.42,
+  "pValue": 0.013,
+  "significant": true,
+  "summary": "Plain-English interpretation",
+  "aiAssisted": false
 }
 ```
 
@@ -415,130 +624,222 @@ Both the native and AI paths return the same shape:
 
 ## 12. CSV Parser
 
-**File:** `src/modes/data/utils/csvParser.js`
+**File:** `frontend/src/modes/data/utils/csvParser.js`
 
-`parseCSV(file) → Promise<{ metadata, spec }>`
+`parseCSV(file)` returns:
 
-Reads the file as text, splits on newlines (handles `\r\n` and `\n`), uses the first row as headers. Detects delimiter by counting commas vs. semicolons in the header line.
+```json
+{
+  "metadata": { "name": "...", "rows": 0, "columns": 0, "source": "Local upload" },
+  "spec": { "rowCount": 0, "columnCount": 0, "numericCount": 0, "categoricalCount": 0, "columns": [] }
+}
+```
 
-**Type inference order (per column):**
-1. Date — matches ISO (`2024-01-15`), US (`01/15/2024`), or longform (`January 15 2024`) patterns
-2. Numeric — strips currency symbols, commas, percent signs and checks if result is a valid number
-3. Categorical — default fallback
+### What it currently does
 
-**Computed stats per column:**
+- reads the CSV in-browser with `FileReader`
+- parses quoted CSV rows
+- uses the header row for column names
+- treats common null-like strings as missing values
+- infers each column as `numeric`, `categorical`, or `datetime`
+- stores raw values for downstream statistics and chat tools
 
-For numeric columns: `mean, median, min, max, q1, q3, std`, plus a 10-bin histogram (`[{ x0, x1, count, portion }]`).
+### Numeric column outputs
 
-For categorical/datetime columns: `top_values` (up to 5 most frequent values with counts).
+For numeric columns it computes:
+- mean
+- median
+- min
+- max
+- q1
+- q3
+- std
+- 10-bin histogram
 
-All columns also store: `missing_count` (empty/null/"NA" values), `unique_count`, `total_count`, and `raw_values` (the full string array, used by the statistics engine to run in-browser tests).
+### Non-numeric outputs
 
-**Output metadata:** `{ name (filename), rows, columns (count), source: 'upload' }`
+For categorical and datetime columns it computes:
+- top values
+- unique count
+- missing count
 
-**Output spec:** `{ rowCount, columnCount, numericCount, categoricalCount, columns: Column[] }`
+### Important current note
+
+`categoricalCount` is effectively "non-numeric count" in the current implementation, so datetime columns are included in that count.
 
 ---
 
 ## 13. Layout Engine
 
-**File:** `src/modes/data/utils/layoutGraph.js`
+**Files:**
+- `frontend/src/modes/data/components/DataCanvas.jsx`
+- `frontend/src/modes/data/utils/layoutGraph.js`
 
-`layoutGraph(nodes, edges) → Node[]` — returns nodes with updated `position` fields.
+The app uses Dagre to keep the analysis graph readable as nodes are added.
 
-Uses Dagre with direction `TB` (top-to-bottom). Node sizes are estimated at 300×200 (a conservative bounding box for all node types). Rank separation: 80px, node separation: 40px.
+The layout reruns when:
+- node count changes
+- edge count changes
+- the summary node toggles between collapsed and expanded
 
-The layout is invoked by the `LayoutEngine` sub-component inside `DataCanvas`, which watches `nodes.length`, `edges.length`, and a "summary collapsed" boolean. Layout runs on any of these changing and the result is pushed back to Zustand via `setNodes`.
+It intentionally does **not** rerun during ordinary manual dragging.
 
----
-
-## 14. Theming System
-
-Themes are implemented via CSS custom properties defined in `nodes.css` and `DataModeApp.css`. The active theme is set by `DataModeApp` writing a `data-theme` attribute to the `<html>` element. Two themes are defined: `light` (default) and `dark`.
-
-Key variable categories: `--dm-bg-*` (backgrounds), `--dm-text-*` (text hierarchy), `--dm-accent*` (indigo accent colour system), `--dm-border-*`, `--dm-node-*` (node internals), `--dm-controls-*` (React Flow control overrides).
-
-Node headers have per-type fixed background colours that are the same in both themes. The body, text, and background variables respond to theme.
+This matters because the summary node can change height substantially between collapsed and expanded states.
 
 ---
 
-## 15. Key Workflows
+## 14. Right Sidebar: Theme + Ask AI
 
-### Workflow A: Upload & Explore
+The right sidebar is now a first-class part of the Data Mode shell.
 
-1. User drags a CSV onto the canvas (or clicks to upload via `UploadPopup`)
-2. `DataModeApp` calls `parseCSV()` → produces `metadata` and `spec`
-3. Zustand: `setDataset()`, then `addNode` creates a Dataset node at the drop position
-4. User clicks "View Summary" on the Dataset node
-5. A `DatasetSummaryNode` is spawned and connected; Dagre re-layouts
-6. Summary shows overall stats (row count, column distribution) and per-column charts (histograms for numeric, bar charts for categorical)
+### Current behavior
 
-### Workflow B: Insight → Hypothesis → Test
+- closed by default
+- opens from a right-edge tab
+- resizable by dragging
+- width constrained between 160 px and 520 px
 
-1. User clicks "Generate Insights" on the Summary node
-2. `DatasetSummaryNode` calls `fetchInsights(metadata, spec, description)` (OpenAI)
-3. 3–5 Insight nodes are spawned, connected to the Summary node via the `insights-out` handle
-4. Each InsightNode on mount calls `resolveChartType()` (AI) to determine chart type + exact columns, then renders the appropriate inline chart
-5. User clicks "Generate Hypothesis" on any Insight node
-6. `InsightNode` calls `fetchHypothesis()` (OpenAI) → a Hypothesis node is spawned
-7. User reviews the hypothesis (optionally editing the statement inline), then clicks "Run [test]"
-8. `HypothesisNode` calls `runTest()` (jstat). If unsupported, shows consent banner → user approves → `fetchTestResult()` (AI)
-9. A Result node is spawned with p-value, significance verdict, plain-English summary, and result chart
+### Sections
+
+**Display**
+- dark mode toggle implemented as a switch-like control
+
+**Ask AI**
+- `ChatPanel`
+- disabled until a dataset is uploaded
+- tool-enabled assistant over both the dataset and the current analysis graph
+
+### Why this matters architecturally
+
+The analysis is no longer only node-driven. Users can now inspect and continue the same analysis in a conversational way without leaving the canvas or rebuilding context manually.
+
+---
+
+## 15. Theming System
+
+Theme state currently lives locally in `modes/data/DataModeApp.jsx`, not in Zustand.
+
+The component writes `data-theme="light"` or `data-theme="dark"` onto `document.documentElement`, and CSS variables in the Data Mode styles respond to that attribute.
+
+Current user-facing theme control:
+- dark mode toggle in the right sidebar
+
+The theme is not yet persisted across sessions.
+
+---
+
+## 16. Key Workflows
+
+### Workflow A: Upload → Description → Summary
+
+1. User drops a CSV on the shell or clicks the empty canvas
+2. `parseCSV()` returns `metadata` and `spec`
+3. `resetGraph()` clears prior analysis
+4. `setDataset()` stores metadata/spec and creates a clean dataset record
+5. A `DatasetNode` is spawned
+6. `DatasetNode` auto-calls `fetchDatasetDescription()`
+7. User clicks `View Summary`
+8. A `DatasetSummaryNode` is created or toggled
+
+### Workflow B: Summary → Insights → Hypothesis → Result
+
+1. User clicks `Generate Insights`
+2. `fetchInsights()` returns 3-5 insight objects
+3. Insight nodes are spawned and connected from `insights-out`
+4. Each `InsightNode` calls `resolveChartType()` on mount
+5. User clicks `Generate Hypothesis`
+6. `fetchHypothesis()` returns a structured hypothesis
+7. Hypothesis node is created and registered
+8. User accepts/rejects or edits the statement if desired
+9. User runs the suggested test
+10. Result is computed in-browser or estimated through AI fallback
+11. A `ResultNode` is spawned and registered
 
 ### Workflow C: Custom Hypothesis
 
-1. User clicks "Custom Hypothesis" on the Summary node
-2. A `CustomHypothesisNode` is spawned and connected via the `custom-hyp-out` handle
-3. User writes a hypothesis in plain language → clicks "Refine →"
-4. `refineHypothesis()` (AI) → formal statement appears below the textarea (nothing hides)
-5. User edits the statement if needed → clicks "Suggest Tests →"
-6. `fetchTestSuggestions()` (AI) → 2–3 test option cards appear below
-7. User selects a test card → clicks "Run Test"
-8. Same run/fallback flow as Workflow B → Result node spawned
+1. User clicks `Custom Hypothesis`
+2. A `CustomHypothesisNode` is spawned from `custom-hyp-out`
+3. User writes a plain-language question
+4. `refineHypothesis()` turns it into a formal statement
+5. `fetchTestSuggestions()` proposes 2-3 tests
+6. User selects a test and runs it
+7. Native test or AI fallback produces a `ResultNode`
+
+### Workflow D: Ask AI Sidebar
+
+1. User uploads a dataset
+2. User opens the right sidebar
+3. User asks a dataset or analysis question
+4. `streamChat()` sends the conversation plus tool definitions
+5. OpenAI may call client-side tools
+6. Tool results render as cards inline in the chat
+7. Assistant continues with an interpreted answer using both tool output and the live analysis context
 
 ---
 
-## 16. Edge & Handle Conventions
+## 17. Edge & Handle Conventions
 
 Named source handles on `DatasetSummaryNode`:
-- `insights-out` — positioned under the "Generate Insights" button; edges to Insight nodes originate here
-- `custom-hyp-out` — positioned under the "Custom Hypothesis" button; edges to CustomHypothesisNode originate here
+- `insights-out`
+- `custom-hyp-out`
 
-Edge style conventions:
+Current visual edge styles:
 
-| Connection | Stroke colour | Style |
-|------------|---------------|-------|
-| Dataset → Summary | `#374151` (gray) | dashed `4,3` |
-| Summary → Insight | `#6366f1` (indigo) | dashed `5,3` |
-| Summary → CustomHypothesis | `#7c3aed` (violet) | dashed `5,3` |
-| Insight → Hypothesis | `#a855f7` (purple) | dashed `5,3` |
-| Hypothesis → Result | `#10b981` (green) | dashed `4,3` |
-| CustomHypothesis → Result | `#10b981` (green) | dashed `4,3` |
+| Connection | Style |
+|------------|-------|
+| Dataset → Summary | gray dashed |
+| Summary → Insight | indigo dashed |
+| Summary → Custom Hypothesis | violet dashed |
+| Insight → Hypothesis | purple dashed |
+| Hypothesis → Result | green dashed |
+| Custom Hypothesis → Result | green dashed |
 
-All edges are `smoothstep` type (React Flow default).
-
----
-
-## 17. API Key Handling
-
-The OpenAI API key is entered by the user at session start via `ApiKeyModal`. It is stored in `sessionStorage` under the key `sv_openai_key` and mirrored in Zustand. It persists through page refreshes within the same tab session but is cleared when the tab closes.
-
-`getApiKey()` in `constants/api.js` reads directly from `sessionStorage` — it does not read from `import.meta.env`. The `.env` file's `VITE_OPENAI_API_KEY` variable is not used in the production build. This ensures the key is never bundled.
-
-All API service calls invoke `getApiKey()` at call time, so a key change mid-session takes effect immediately.
+Most edges are created explicitly by the node components when new downstream nodes are spawned.
 
 ---
 
-## 18. Deployment
+## 18. API Key Handling
 
-The app is hosted on GitHub Pages at `https://dipanbag.github.io/mindmapper/statviz`.
+The OpenAI API key is entered through `ApiKeyModal` and stored in `sessionStorage` under `sv_openai_key`.
 
-**CI/CD pipeline** (`.github/workflows/deploy.yml`):
-- Triggers on push to `main` and via manual `workflow_dispatch`
-- Steps: checkout → Node 20 setup → `npm ci` → `npm run build` (Vite produces `frontend/dist/`) → `actions/configure-pages` → `actions/upload-pages-artifact` (path: `frontend/dist`) → `actions/deploy-pages@v4`
+Important current properties:
+- not bundled into the frontend
+- not stored in project files
+- persists only for the current browser session
+- read at request time by `getApiKey()`
 
-**Vite config:** `base: '/mindmapper/'` ensures all asset paths are relative to the subdirectory.
+The modal copy explicitly states that the key is sent directly to OpenAI and not elsewhere.
 
-**SPA routing on GitHub Pages:** Direct navigation to `/mindmapper/statviz` returns a 404 from GitHub's static file server. `public/404.html` encodes the full path into a `?p=` query parameter and redirects to the root. `index.html` contains a script in `<head>` that decodes this query parameter and replaces the browser history entry before React Router mounts, restoring the intended route.
+---
 
-**BrowserRouter basename:** Set to `import.meta.env.BASE_URL` (which Vite resolves to `/mindmapper/` in production and `/` in development), so all React Router `<Link>` and `navigate()` calls are automatically prefixed correctly in both environments.
+## 19. Deployment
+
+The project deploys to GitHub Pages via `.github/workflows/deploy.yml`.
+
+### CI/CD flow
+
+1. checkout
+2. setup Node 20
+3. `npm ci` in `frontend/`
+4. `npm run build` in `frontend/`
+5. upload `frontend/dist`
+6. deploy with `actions/deploy-pages@v4`
+
+### Hosting details
+
+- Vite base path: `/mindmapper/`
+- app route: `/mindmapper/statviz`
+- SPA deep-link support handled by `404.html` + `index.html` path restoration
+
+---
+
+## Summary Snapshot
+
+As of April 24, 2026, the live StatViz system is best understood as a **client-side visual analysis canvas plus a synchronized analysis registry plus a right-sidebar AI copilot**.
+
+The most important current architectural updates relative to older descriptions are:
+- the active Data Mode root is under `modes/data/`
+- the right sidebar now includes dark mode and Ask AI
+- `chatTools.js` adds client-side tool calling over dataset and analysis state
+- the store tracks normalized dataset/insight/hypothesis/result records in parallel with React Flow nodes
+- the upload → summary → insights → hypotheses → results pipeline is fully wired end to end
