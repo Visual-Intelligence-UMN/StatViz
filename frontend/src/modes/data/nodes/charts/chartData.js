@@ -13,6 +13,85 @@ export function findCols(spec, colNames) {
     return { cols, numeric, categorical };
 }
 
+function toNumericValues(col) {
+    return (col?.raw_values ?? [])
+        .map((value) => parseFloat(value))
+        .filter((value) => !Number.isNaN(value));
+}
+
+function sortedUniqueNumericValues(col) {
+    return [...new Set(toNumericValues(col))].sort((a, b) => a - b);
+}
+
+function getFrequencyMap(values) {
+    const freq = new Map();
+    values.forEach((value) => {
+        freq.set(value, (freq.get(value) ?? 0) + 1);
+    });
+    return freq;
+}
+
+function gapVariation(values) {
+    if (values.length < 3) return { meanGap: null, cv: Infinity };
+    const gaps = values.slice(1).map((value, index) => value - values[index]);
+    const meanGap = gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length;
+    if (meanGap <= 0) return { meanGap, cv: Infinity };
+    const variance = gaps.reduce((sum, gap) => sum + (gap - meanGap) ** 2, 0) / gaps.length;
+    return {
+        meanGap,
+        cv: Math.sqrt(variance) / meanGap,
+    };
+}
+
+/**
+ * Returns true when a numeric column behaves like a sequential record key
+ * rather than a measured variable. This is intentionally based on the value
+ * distribution, not on the column name.
+ */
+export function isIdentifierLikeColumn(col) {
+    if (!col || col.type !== 'numeric') return false;
+
+    const numericValues = toNumericValues(col);
+    const rowCount = numericValues.length;
+    if (rowCount < 8 || col.unique_count == null) return false;
+
+    const values = sortedUniqueNumericValues(col);
+    if (values.length < 8) return false;
+
+    const { meanGap, cv } = gapVariation(values);
+    if (!Number.isFinite(meanGap) || meanGap <= 0) return false;
+
+    const span = values[values.length - 1] - values[0];
+    if (span <= 0) return false;
+
+    const expectedSpan = meanGap * (values.length - 1);
+    const spanConsistency = Math.abs(expectedSpan - span) / span;
+
+    const looksSequential = cv <= 0.02 && spanConsistency <= 0.02;
+    if (!looksSequential) return false;
+
+    const uniqueRatio = values.length / rowCount;
+    if (uniqueRatio >= 0.95) return true;
+
+    const frequencies = [...getFrequencyMap(numericValues).values()];
+    const meanFrequency = frequencies.reduce((sum, count) => sum + count, 0) / frequencies.length;
+    if (!Number.isFinite(meanFrequency) || meanFrequency <= 1) return false;
+
+    const frequencyVariance = frequencies.reduce(
+        (sum, count) => sum + (count - meanFrequency) ** 2,
+        0
+    ) / frequencies.length;
+    const frequencyCv = Math.sqrt(frequencyVariance) / meanFrequency;
+
+    return uniqueRatio >= 0.2 && frequencyCv <= 0.05;
+}
+
+export function isVisualizableSummaryColumn(col) {
+    if (!col) return false;
+    if (col.type === 'numeric') return !isIdentifierLikeColumn(col);
+    return true;
+}
+
 /** Scatter plot data — subsample to maxPoints for perf */
 export function getScatterData(col1, col2, maxPoints = 250) {
     const out = [];
@@ -199,22 +278,10 @@ export function getIqrOverlapSummary(groupSummary) {
     };
 }
 
-/** Returns true if a column is likely an identifier with no analytical meaning */
-function isIdLike(col) {
-    const name = col.name.toLowerCase();
-    if (/^id$|_id$|^id_/.test(name) || name === 'index' || name === 'row') return true;
-    // Nearly all values unique → likely a key column
-    if (col.unique_count != null && col.stats?.mean != null) {
-        const rowCount = col.raw_values?.length ?? col.unique_count;
-        if (col.unique_count / rowCount > 0.95 && rowCount > 10) return true;
-    }
-    return false;
-}
-
 /** Pairwise Pearson r matrix for all numeric columns */
 export function getCorrelationMatrix(spec) {
     const numCols = spec.columns.filter(
-        (c) => c.type === 'numeric' && c.raw_values?.length && !isIdLike(c)
+        (c) => c.type === 'numeric' && c.raw_values?.length && !isIdentifierLikeColumn(c)
     );
     if (numCols.length < 2) return null;
 

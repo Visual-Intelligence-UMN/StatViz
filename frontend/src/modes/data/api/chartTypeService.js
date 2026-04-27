@@ -9,6 +9,7 @@
 
 import { getApiKey, OPENAI_API_URL } from '../../../constants/api';
 import { OPENAI_MODEL } from '../../../constants/models';
+import { isIdentifierLikeColumn } from '../nodes/charts/chartData';
 
 /**
  * Ask AI which chart type best visualises this insight, and which spec columns to use.
@@ -18,14 +19,8 @@ import { OPENAI_MODEL } from '../../../constants/models';
  * @returns {Promise<{ chart_type: string, columns: string[] }>}
  */
 export async function resolveChartType(insight, spec) {
-    // Exclude obvious identifier columns from the list shown to AI
     const meaningfulCols = (spec.columns ?? []).filter((c) => {
-        const name = c.name.toLowerCase();
-        if (/^id$|_id$|^id_/.test(name) || name === 'index' || name === 'row') return false;
-        if (c.type === 'numeric' && c.unique_count != null) {
-            const n = c.raw_values?.length ?? c.unique_count;
-            if (n > 10 && c.unique_count / n > 0.95) return false;
-        }
+        if (isIdentifierLikeColumn(c)) return false;
         return true;
     });
 

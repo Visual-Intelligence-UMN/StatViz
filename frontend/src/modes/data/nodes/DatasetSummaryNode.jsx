@@ -3,6 +3,7 @@ import { Handle, Position } from '@xyflow/react';
 import useDataModeStore from '../store/useDataModeStore';
 import { fetchInsights } from '../api/insightService';
 import { NumericCharts, CategoricalChart, CompletenessChart } from './ColumnChart';
+import { isVisualizableSummaryColumn } from './charts/chartData';
 import './nodes.css';
 
 const EDGE_INSIGHT = {
@@ -74,8 +75,16 @@ function ExpandedSummary({ id, spec, selected }) {
     const isDashboard = spec.columnCount < 10;
 
     const numericCols  = spec.columns.filter((c) => c.type === 'numeric');
+    const visualNumericCols = numericCols.filter(isVisualizableSummaryColumn);
     const catCols      = spec.columns.filter((c) => c.type === 'categorical');
     const datetimeCols = spec.columns.filter((c) => c.type === 'datetime');
+
+    const getDashboardSectionProps = (count) => ({
+        className: 'dsn__db-col',
+        style: {
+            '--dsn-dashboard-cols': Math.max(1, count),
+        },
+    });
 
     const toggleCol = (name) =>
         setExpandedCols((prev) => {
@@ -204,19 +213,19 @@ function ExpandedSummary({ id, spec, selected }) {
             {isDashboard ? (
                 <div className="dsn__dashboard">
 
-                    {numericCols.length > 0 && (
-                        <div className="dsn__db-col">
+                    {visualNumericCols.length > 0 && (
+                        <div {...getDashboardSectionProps(visualNumericCols.length)}>
                             <div className="dsn__group-label">
-                                Numeric ({numericCols.length})
+                                Numeric ({visualNumericCols.length})
                             </div>
-                            {numericCols.map((col) => (
+                            {visualNumericCols.map((col) => (
                                 <NumericCard key={col.name} col={col} />
                             ))}
                         </div>
                     )}
 
                     {catCols.length > 0 && (
-                        <div className="dsn__db-col">
+                        <div {...getDashboardSectionProps(catCols.length)}>
                             <div className="dsn__group-label">
                                 Categorical ({catCols.length})
                             </div>
@@ -227,7 +236,7 @@ function ExpandedSummary({ id, spec, selected }) {
                     )}
 
                     {datetimeCols.length > 0 && (
-                        <div className="dsn__db-col">
+                        <div {...getDashboardSectionProps(datetimeCols.length)}>
                             <div className="dsn__group-label">
                                 Datetime ({datetimeCols.length})
                             </div>
@@ -243,10 +252,10 @@ function ExpandedSummary({ id, spec, selected }) {
                 /* ── Scrollable list (≥ 10 columns) ──────────────────────── */
                 <div className="dsn__scroll">
 
-                    {numericCols.length > 0 && (
+                    {visualNumericCols.length > 0 && (
                         <section>
-                            <div className="dsn__group-label">Numeric ({numericCols.length})</div>
-                            {numericCols.map((col) => {
+                            <div className="dsn__group-label">Numeric ({visualNumericCols.length})</div>
+                            {visualNumericCols.map((col) => {
                                 const open = expandedCols.has(col.name);
                                 return (
                                     <div key={col.name} className="dsn__col-row">
@@ -300,38 +309,35 @@ function ExpandedSummary({ id, spec, selected }) {
 
             {/* Actions */}
             <div className="dsn__divider" />
-            <div className="dm-node__actions">
-                <div style={{ position: 'relative', flex: 1 }}>
-                    <button
-                        className="dm-node__action-btn dm-node__action-btn--primary"
-                        style={{ width: '100%' }}
-                        onClick={handleGenerateInsights}
-                        disabled={insightStatus === 'loading'}
-                    >
-                        {insightStatus === 'loading' ? 'Thinking...'    :
-                         insightStatus === 'error'   ? 'Retry Insights' :
-                                                       'Generate Insights'}
-                    </button>
-                    <Handle type="source" position={Position.Bottom} id="insights-out"
-                        style={{ bottom: -4, left: '50%', transform: 'translateX(-50%)' }} />
+            <div className="dsn__actions-panel">
+                <div className="dsn__actions-label">Analysis Actions</div>
+                <div className="dm-node__actions dsn__actions-row">
+                    <div style={{ position: 'relative', flex: 1 }}>
+                        <button
+                            className="dm-node__action-btn dm-node__action-btn--primary"
+                            style={{ width: '100%' }}
+                            onClick={handleGenerateInsights}
+                            disabled={insightStatus === 'loading'}
+                        >
+                            {insightStatus === 'loading' ? 'Thinking...'    :
+                             insightStatus === 'error'   ? 'Retry Insights' :
+                                                           'Generate Insights'}
+                        </button>
+                        <Handle type="source" position={Position.Bottom} id="insights-out"
+                            style={{ bottom: -4, left: '50%', transform: 'translateX(-50%)' }} />
+                    </div>
+                    <div style={{ position: 'relative', flex: 1 }}>
+                        <button
+                            className="dm-node__action-btn dm-node__action-btn--ghost"
+                            style={{ width: '100%' }}
+                            onClick={handleCustomHypothesis}
+                        >
+                            Custom Hypothesis
+                        </button>
+                        <Handle type="source" position={Position.Bottom} id="custom-hyp-out"
+                            style={{ bottom: -4, left: '50%', transform: 'translateX(-50%)' }} />
+                    </div>
                 </div>
-                <div style={{ position: 'relative', flex: 1 }}>
-                    <button
-                        className="dm-node__action-btn dm-node__action-btn--ghost"
-                        style={{ width: '100%' }}
-                        onClick={handleCustomHypothesis}
-                    >
-                        Custom Hypothesis
-                    </button>
-                    <Handle type="source" position={Position.Bottom} id="custom-hyp-out"
-                        style={{ bottom: -4, left: '50%', transform: 'translateX(-50%)' }} />
-                </div>
-                <button
-                    className="dm-node__action-btn dm-node__action-btn--ghost"
-                    onClick={() => {}}
-                >
-                    Explore Columns
-                </button>
             </div>
 
             <Handle type="target" position={Position.Top} />

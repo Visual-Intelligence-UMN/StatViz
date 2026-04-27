@@ -485,7 +485,7 @@ export function CompletenessChart({ columns, rowCount }) {
  */
 export function NumericCharts({ col }) {
     return (
-        <div className="dsn__charts">
+        <div className="dsn__charts dsn__charts--numeric">
 
             <div className="dsn__chart-section">
                 <div className="dsn__chart-title">Distribution</div>
