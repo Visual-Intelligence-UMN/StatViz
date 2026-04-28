@@ -139,7 +139,7 @@ export function getGroupBarData(catCol, numCol, maxGroups = 7) {
 }
 
 /** Raw point data for grouped numeric comparisons, with deterministic jitter */
-export function getGroupPointData(catCol, numCol, maxPointsPerGroup = 40, limitGroups = 2) {
+export function getGroupPointData(catCol, numCol, maxPointsPerGroup = 40, limitGroups = null) {
     const groups = new Map();
     const orderedGroups = [];
     const n = Math.min(catCol.raw_values.length, numCol.raw_values.length);
@@ -156,7 +156,9 @@ export function getGroupPointData(catCol, numCol, maxPointsPerGroup = 40, limitG
         groups.get(group).push(value);
     }
 
-    const selectedGroups = orderedGroups.slice(0, limitGroups);
+    const selectedGroups = limitGroups == null
+        ? orderedGroups
+        : orderedGroups.slice(0, limitGroups);
     return selectedGroups.flatMap((groupName, groupIndex) => {
         const vals = groups.get(groupName) ?? [];
         const step = vals.length > maxPointsPerGroup ? vals.length / maxPointsPerGroup : 1;
@@ -170,14 +172,14 @@ export function getGroupPointData(catCol, numCol, maxPointsPerGroup = 40, limitG
                 group: groupName,
                 groupIndex,
                 value: +value.toFixed(4),
-                jitterX: +(groupIndex + jitterSeed).toFixed(4),
+                jitterX: +jitterSeed.toFixed(4),
             };
         });
     });
 }
 
 /** Summary stats for the first N groups used in the numeric group comparison result view */
-export function getGroupComparisonSummary(catCol, numCol, limitGroups = 2) {
+export function getGroupComparisonSummary(catCol, numCol, limitGroups = null) {
     const groups = new Map();
     const orderedGroups = [];
     const n = Math.min(catCol.raw_values.length, numCol.raw_values.length);
@@ -194,7 +196,11 @@ export function getGroupComparisonSummary(catCol, numCol, limitGroups = 2) {
         groups.get(group).push(value);
     }
 
-    return orderedGroups.slice(0, limitGroups).map((group) => {
+    const selectedGroups = limitGroups == null
+        ? orderedGroups
+        : orderedGroups.slice(0, limitGroups);
+
+    return selectedGroups.map((group) => {
         const vals = groups.get(group) ?? [];
         const mean = vals.reduce((sum, v) => sum + v, 0) / vals.length;
         const variance = vals.reduce((sum, v) => sum + (v - mean) ** 2, 0) / vals.length;
@@ -218,8 +224,8 @@ function quantile(sortedVals, q) {
     return sortedVals[lower] * (1 - weight) + sortedVals[upper] * weight;
 }
 
-/** Richer summary for 2-group comparison visuals: quartiles, CI, and overlap cues */
-export function getGroupDistributionSummary(catCol, numCol, limitGroups = 2) {
+/** Richer summary for group comparison visuals: quartiles, CI, and overlap cues */
+export function getGroupDistributionSummary(catCol, numCol, limitGroups = null) {
     const groups = new Map();
     const orderedGroups = [];
     const n = Math.min(catCol.raw_values.length, numCol.raw_values.length);
@@ -235,7 +241,11 @@ export function getGroupDistributionSummary(catCol, numCol, limitGroups = 2) {
         groups.get(group).push(value);
     }
 
-    return orderedGroups.slice(0, limitGroups).map((group) => {
+    const selectedGroups = limitGroups == null
+        ? orderedGroups
+        : orderedGroups.slice(0, limitGroups);
+
+    return selectedGroups.map((group) => {
         const vals = [...(groups.get(group) ?? [])].sort((a, b) => a - b);
         if (!vals.length) return null;
         const mean = vals.reduce((sum, v) => sum + v, 0) / vals.length;

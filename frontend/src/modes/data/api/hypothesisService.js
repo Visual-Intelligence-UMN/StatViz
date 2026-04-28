@@ -25,10 +25,12 @@ import { OPENAI_MODEL } from '../../../constants/models';
 
 const SYSTEM_PROMPT = `You are a statistical hypothesis designer. Given an exploratory insight and dataset context, generate one precisely phrased, testable statistical hypothesis.
 
+The hypothesis must be phrased as something to test, not as a claimed result. Do not pre-assert significance or imply the conclusion is already known.
+
 Return a JSON object with a single key "hypothesis" containing exactly these fields:
 - label: string (use the provided label exactly as given)
 - title: short title, max 8 words
-- statement: full statistical hypothesis statement (e.g. "There is a significant positive association between X and Y")
+- statement: full statistical hypothesis statement phrased neutrally (e.g. "Test whether there is a positive association between X and Y" or "Test whether Exam_Score differs across groups of Parent_Involvement")
 - type: one of "association", "group_difference", "categorical_relationship", "distribution_difference"
 - variables: array of exact column names from the schema that are involved
 - directionality: one of "positive", "negative", "non-directional", "two-tailed"

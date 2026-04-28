@@ -34,7 +34,7 @@ function CollapsedSummary({ spec, selected }) {
 
 // ── Dashboard column card (one per data column, charts always visible) ──────
 
-function NumericCard({ col }) {
+function NumericCard({ col, chartsWide = false }) {
     return (
         <div className="dsn__db-card">
             <div className="dsn__db-card-name">{col.name}</div>
@@ -45,7 +45,7 @@ function NumericCard({ col }) {
                 {col.stats?.min  != null && <span title="range">{col.stats.min}–{col.stats.max}</span>}
                 {col.stats?.std  != null && <span title="std">sd {col.stats.std}</span>}
             </div>
-            <NumericCharts col={col} />
+            <NumericCharts col={col} wide={chartsWide} />
         </div>
     );
 }
@@ -69,15 +69,23 @@ function CategoricalCard({ col }) {
 // ── Expanded view ───────────────────────────────────────────────────────────
 
 function ExpandedSummary({ id, spec, selected }) {
-    const [insightStatus, setInsightStatus] = useState('idle');
-    const [expandedCols, setExpandedCols]   = useState(new Set());
-
-    const isDashboard = spec.columnCount < 10;
-
     const numericCols  = spec.columns.filter((c) => c.type === 'numeric');
     const visualNumericCols = numericCols.filter(isVisualizableSummaryColumn);
     const catCols      = spec.columns.filter((c) => c.type === 'categorical');
     const datetimeCols = spec.columns.filter((c) => c.type === 'datetime');
+    const isDashboard = spec.columnCount < 10;
+    const visiblePreviewCols = !isDashboard
+        ? [...visualNumericCols, ...catCols, ...datetimeCols].slice(0, 6)
+        : [];
+    const previewColNames = new Set(visiblePreviewCols.map((col) => col.name));
+    const remainingNumericCols = visualNumericCols.filter((col) => !previewColNames.has(col.name));
+    const remainingCategoricalCols = [...catCols, ...datetimeCols].filter(
+        (col) => !previewColNames.has(col.name)
+    );
+    const defaultExpandedCols = new Set();
+
+    const [insightStatus, setInsightStatus] = useState('idle');
+    const [expandedCols, setExpandedCols]   = useState(defaultExpandedCols);
 
     const getDashboardSectionProps = (count) => ({
         className: 'dsn__db-col',
@@ -184,6 +192,7 @@ function ExpandedSummary({ id, spec, selected }) {
     const nodeClass = [
         'dm-node dm-node--summary',
         isDashboard ? 'dm-node--summary-dashboard' : 'dm-node--summary-expanded',
+        !isDashboard && visiblePreviewCols.length > 0 ? 'dm-node--summary-expanded-preview' : '',
         selected ? 'dm-node--selected' : '',
     ].filter(Boolean).join(' ');
 
@@ -219,7 +228,11 @@ function ExpandedSummary({ id, spec, selected }) {
                                 Numeric ({visualNumericCols.length})
                             </div>
                             {visualNumericCols.map((col) => (
-                                <NumericCard key={col.name} col={col} />
+                                <NumericCard
+                                    key={col.name}
+                                    col={col}
+                                    chartsWide={visualNumericCols.length === 1}
+                                />
                             ))}
                         </div>
                     )}
@@ -250,12 +263,30 @@ function ExpandedSummary({ id, spec, selected }) {
 
             ) : (
                 /* ── Scrollable list (≥ 10 columns) ──────────────────────── */
-                <div className="dsn__scroll">
+                <>
+                    {visiblePreviewCols.length > 0 && (
+                        <div className="dsn__dashboard dsn__dashboard--preview">
+                            <div {...getDashboardSectionProps(Math.min(2, visiblePreviewCols.length))}>
+                                <div className="dsn__group-label">
+                                    Visual Preview ({visiblePreviewCols.length})
+                                </div>
+                                {visiblePreviewCols.map((col) => (
+                                    col.type === 'numeric'
+                                        ? <NumericCard key={col.name} col={col} chartsWide={false} />
+                                        : <CategoricalCard key={col.name} col={col} />
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
-                    {visualNumericCols.length > 0 && (
+                    <div className="dsn__divider" />
+
+                    <div className="dsn__scroll">
+
+                    {remainingNumericCols.length > 0 && (
                         <section>
-                            <div className="dsn__group-label">Numeric ({visualNumericCols.length})</div>
-                            {visualNumericCols.map((col) => {
+                            <div className="dsn__group-label">More Numeric ({remainingNumericCols.length})</div>
+                            {remainingNumericCols.map((col) => {
                                 const open = expandedCols.has(col.name);
                                 return (
                                     <div key={col.name} className="dsn__col-row">
@@ -277,12 +308,12 @@ function ExpandedSummary({ id, spec, selected }) {
                         </section>
                     )}
 
-                    {[...catCols, ...datetimeCols].length > 0 && (
+                    {remainingCategoricalCols.length > 0 && (
                         <section>
                             <div className="dsn__group-label">
-                                Categorical ({catCols.length + datetimeCols.length})
+                                More Categorical ({remainingCategoricalCols.length})
                             </div>
-                            {[...catCols, ...datetimeCols].map((col) => {
+                            {remainingCategoricalCols.map((col) => {
                                 const open = expandedCols.has(col.name);
                                 return (
                                     <div key={col.name} className="dsn__col-row">
@@ -304,7 +335,8 @@ function ExpandedSummary({ id, spec, selected }) {
                         </section>
                     )}
 
-                </div>
+                    </div>
+                </>
             )}
 
             {/* Actions */}

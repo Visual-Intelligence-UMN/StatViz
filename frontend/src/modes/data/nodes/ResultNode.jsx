@@ -4,7 +4,6 @@ import ResultChart from './charts/ResultChart';
 import './nodes.css';
 
 function ResultNode({ data, selected }) {
-    const sig         = data.significant;
     const datasetSpec = useDataModeStore((s) => s.datasetSpec);
 
     return (
@@ -22,31 +21,6 @@ function ResultNode({ data, selected }) {
                 {/* Method name */}
                 {data.method && (
                     <div className="res__method">{data.method}</div>
-                )}
-
-                {/* Significance verdict */}
-                {sig != null && (
-                    <div className={`res__verdict res__verdict--${sig ? 'significant' : 'not'}`}>
-                        {sig ? '✓ Significant' : '✗ Not significant'}
-                        <span className="res__alpha"> (α = 0.05)</span>
-                    </div>
-                )}
-
-                {/* Stats row */}
-                {(data.stat != null || data.pValue != null) && (
-                    <div className="res__stats-row">
-                        {data.stat != null && (
-                            <span className="res__stat-pill">stat = {data.stat}</span>
-                        )}
-                        {data.pValue != null && (
-                            <span className="res__stat-pill">p = {data.pValue}</span>
-                        )}
-                    </div>
-                )}
-
-                {/* Plain-English summary */}
-                {data.summary && (
-                    <div className="dm-node__meta res__summary">{data.summary}</div>
                 )}
 
                 <ResultChart

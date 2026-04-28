@@ -483,9 +483,9 @@ export function CompletenessChart({ columns, rowCount }) {
  * NumericCharts — rendered when a numeric column row is expanded.
  * Shows: Distribution histogram + Five-number summary box plot
  */
-export function NumericCharts({ col }) {
+export function NumericCharts({ col, wide = false }) {
     return (
-        <div className="dsn__charts dsn__charts--numeric">
+        <div className={`dsn__charts ${wide ? 'dsn__charts--numeric-wide' : ''}`}>
 
             <div className="dsn__chart-section">
                 <div className="dsn__chart-title">Distribution</div>

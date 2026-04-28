@@ -74,6 +74,180 @@
     min-width: 0;
 }
 
+.rchart__honesty {
+    display: grid;
+    gap: 7px;
+    margin-bottom: 10px;
+    padding: 9px 10px;
+    border-radius: 10px;
+    background: rgba(99, 102, 241, 0.04);
+    border: 1px solid rgba(99, 102, 241, 0.12);
+}
+
+.rchart__honesty-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #64748b;
+}
+
+.rchart__honesty-row {
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr) 96px;
+    gap: 8px;
+    align-items: center;
+}
+
+.rchart__honesty-label,
+.rchart__honesty-value,
+.rchart__honesty-copy {
+    font-size: 9px;
+    color: #64748b;
+}
+
+.rchart__honesty-label {
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.rchart__honesty-track {
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.14);
+    overflow: hidden;
+}
+
+.rchart__honesty-fill {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+}
+
+.rchart__honesty-fill--signal {
+    background: linear-gradient(90deg, rgba(99, 102, 241, 0.55), rgba(99, 102, 241, 0.92));
+}
+
+.rchart__honesty-fill--detection {
+    background: linear-gradient(90deg, rgba(16, 185, 129, 0.55), rgba(16, 185, 129, 0.92));
+}
+
+.rchart__conclusion {
+    margin-bottom: 10px;
+    font-size: 10.5px;
+    line-height: 1.5;
+    color: #475569;
+}
+
+.rchart__verdict {
+    display: grid;
+    gap: 6px;
+    margin-bottom: 10px;
+    padding: 10px 11px;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.03);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.rchart__verdict-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.rchart__verdict-title {
+    font-size: 12px;
+    font-weight: 800;
+    color: #334155;
+}
+
+.rchart__verdict-copy {
+    font-size: 10.5px;
+    line-height: 1.5;
+    color: #475569;
+}
+
+.rchart__verdict-chip {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 999px;
+}
+
+.rchart__verdict-chip--sig {
+    background: rgba(16, 185, 129, 0.12);
+    color: #059669;
+}
+
+.rchart__verdict-chip--ns {
+    background: rgba(244, 63, 94, 0.1);
+    color: #e11d48;
+}
+
+.rchart__verdict-chip--ai {
+    background: rgba(245, 158, 11, 0.12);
+    color: #d97706;
+}
+
+.rchart__layer {
+    display: grid;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.rchart__layer-head {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.rchart__layer-label {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #94a3b8;
+}
+
+.rchart__layer-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #334155;
+}
+
+.rchart__layer-caption {
+    font-size: 10px;
+    line-height: 1.45;
+    color: #64748b;
+}
+
+.rchart__details {
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px dashed rgba(148, 163, 184, 0.22);
+}
+
+.rchart__details > summary {
+    cursor: pointer;
+    list-style: none;
+    font-size: 10px;
+    font-weight: 700;
+    color: #64748b;
+}
+
+.rchart__details > summary::-webkit-details-marker {
+    display: none;
+}
+
+.rchart__details-body {
+    display: grid;
+    gap: 8px;
+    margin-top: 8px;
+}
+
 .rchart__metric-label {
     font-size: 9px;
     font-weight: 700;
@@ -101,6 +275,77 @@
     display: grid;
     gap: 2px;
     margin: -2px 0 8px;
+}
+
+.rchart__toggle {
+    display: inline-grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    margin: 0 0 8px;
+    padding: 3px;
+    border-radius: 10px;
+    background: rgba(148, 163, 184, 0.1);
+    border: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.rchart__toggle-btn {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 7px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 120ms ease, color 120ms ease;
+}
+
+.rchart__toggle-btn--active {
+    background: #fff;
+    color: #334155;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.rchart__explain {
+    display: grid;
+    gap: 7px;
+    margin-bottom: 10px;
+    padding: 8px 9px;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.028);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.rchart__explain-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #64748b;
+}
+
+.rchart__explain-row {
+    display: grid;
+    gap: 2px;
+}
+
+.rchart__explain-row--caution {
+    padding-top: 2px;
+    border-top: 1px dashed rgba(148, 163, 184, 0.2);
+}
+
+.rchart__explain-label {
+    font-size: 9px;
+    font-weight: 700;
+    color: #94a3b8;
+}
+
+.rchart__explain-copy {
+    font-size: 10px;
+    line-height: 1.45;
+    color: #475569;
 }
 
 .rchart__evidence-detail {
@@ -198,6 +443,268 @@
     gap: 2px;
 }
 
+.rchart__summary {
+    display: grid;
+    gap: 6px;
+    padding: 8px 9px;
+    border-radius: 8px;
+    background: rgba(99, 102, 241, 0.04);
+    border: 1px solid rgba(99, 102, 241, 0.12);
+}
+
+.rchart__summary-copy {
+    display: grid;
+    gap: 1px;
+}
+
+.rchart__summary-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #64748b;
+}
+
+.rchart__summary-subtitle {
+    font-size: 9px;
+    line-height: 1.4;
+    color: #94a3b8;
+}
+
+.rchart__summary-body {
+    min-width: 0;
+}
+
+.rchart__inference {
+    display: grid;
+    gap: 3px;
+    padding: 8px 9px;
+    border-radius: 8px;
+    background: rgba(16, 185, 129, 0.05);
+    border: 1px solid rgba(16, 185, 129, 0.14);
+}
+
+.rchart__inference-title {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #059669;
+}
+
+.rchart__inference-copy {
+    font-size: 10px;
+    line-height: 1.5;
+    color: #475569;
+}
+
+.rchart__summary-svg {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.rchart__variance {
+    display: grid;
+    gap: 6px;
+}
+
+.rchart__variance-bar {
+    display: flex;
+    height: 12px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(148, 163, 184, 0.14);
+}
+
+.rchart__variance-fill {
+    display: block;
+    height: 100%;
+}
+
+.rchart__variance-fill--explained {
+    background: rgba(16, 185, 129, 0.9);
+}
+
+.rchart__variance-fill--unexplained {
+    background: rgba(99, 102, 241, 0.55);
+}
+
+.rchart__variance-copy {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 9px;
+    color: #64748b;
+}
+
+.rchart__stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 8px;
+}
+
+.rchart__stat-card {
+    display: grid;
+    gap: 3px;
+    padding: 8px;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.026);
+    border: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.rchart__stat-card-label {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #94a3b8;
+}
+
+.rchart__stat-card-value {
+    font-size: 11px;
+    font-weight: 700;
+    color: #334155;
+}
+
+.rchart__stat-card-copy {
+    font-size: 9px;
+    line-height: 1.4;
+    color: #64748b;
+}
+
+.rchart__zero-line {
+    stroke: rgba(99, 102, 241, 0.38);
+    stroke-width: 1.2;
+    stroke-dasharray: 4 2;
+}
+
+.rchart__delta-line {
+    stroke: #10b981;
+    stroke-width: 2;
+}
+
+.rchart__delta-cap {
+    stroke: #10b981;
+    stroke-width: 1.5;
+}
+
+.rchart__mean-marker {
+    stroke: rgba(16, 185, 129, 0.9);
+    stroke-width: 1.5;
+    stroke-dasharray: 3 2;
+}
+
+.rchart__effect-meter {
+    display: grid;
+    gap: 5px;
+}
+
+.rchart__effect-meter-copy {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.rchart__effect-meter-label {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #94a3b8;
+}
+
+.rchart__effect-meter-value {
+    font-size: 9px;
+    color: #475569;
+    font-weight: 700;
+}
+
+.rchart__effect-meter-track {
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.14);
+    overflow: hidden;
+}
+
+.rchart__effect-meter-fill {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(99, 102, 241, 0.55), rgba(16, 185, 129, 0.9));
+}
+
+.rchart__null {
+    display: grid;
+    gap: 4px;
+}
+
+.rchart__null-tail {
+    fill: rgba(16, 185, 129, 0.16);
+    stroke: none;
+}
+
+.rchart__null-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: #64748b;
+}
+
+.rchart__null-copy {
+    font-size: 9px;
+    color: #64748b;
+}
+
+.rchart__qq-calibration {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.rchart__tail-balance {
+    display: grid;
+    gap: 6px;
+}
+
+.rchart__tail-row {
+    display: grid;
+    grid-template-columns: 70px minmax(0, 1fr) 42px;
+    gap: 8px;
+    align-items: center;
+}
+
+.rchart__tail-label,
+.rchart__tail-value {
+    font-size: 9px;
+    color: #64748b;
+}
+
+.rchart__tail-label {
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.rchart__tail-track {
+    height: 7px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.14);
+    overflow: hidden;
+}
+
+.rchart__tail-fill {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: rgba(16, 185, 129, 0.85);
+}
+
+.rchart__tail-fill--soft {
+    background: rgba(99, 102, 241, 0.72);
+}
+
 .rchart__panel-title {
     font-size: 10px;
     font-weight: 700;
@@ -256,6 +763,41 @@
     height: auto;
 }
 
+.rchart__overlapviz {
+    display: grid;
+    gap: 6px;
+}
+
+.rchart__overlapviz-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    align-items: center;
+    font-size: 9px;
+    color: #64748b;
+}
+
+.rchart__overlapviz-copy {
+    color: #94a3b8;
+}
+
+.rchart__swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 4px;
+    border-radius: 999px;
+    vertical-align: -1px;
+}
+
+.rchart__swatch--a {
+    background: rgba(99, 102, 241, 0.75);
+}
+
+.rchart__swatch--b {
+    background: rgba(16, 185, 129, 0.75);
+}
+
 .rchart__heatmap-svg {
     display: block;
     width: 100%;
@@ -312,6 +854,83 @@
     color: #6366f1;
 }
 
+.rchart__residual-list {
+    display: grid;
+    gap: 6px;
+}
+
+.rchart__residual-item {
+    display: grid;
+    gap: 3px;
+}
+
+.rchart__residual-label {
+    font-size: 9px;
+    font-weight: 700;
+    color: #475569;
+}
+
+.rchart__residual-bar {
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.14);
+    overflow: hidden;
+}
+
+.rchart__residual-fill {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+}
+
+.rchart__residual-fill--pos {
+    background: rgba(16, 185, 129, 0.78);
+}
+
+.rchart__residual-fill--neg {
+    background: rgba(244, 63, 94, 0.72);
+}
+
+.rchart__residual-value {
+    font-size: 9px;
+    color: #94a3b8;
+}
+
+.rchart__trend-summary {
+    display: grid;
+    gap: 6px;
+}
+
+.rchart__trend-track {
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.14);
+    overflow: hidden;
+}
+
+.rchart__trend-fill {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+}
+
+.rchart__trend-fill--sig {
+    background: linear-gradient(90deg, rgba(16, 185, 129, 0.65), rgba(16, 185, 129, 0.95));
+}
+
+.rchart__trend-fill--ns {
+    background: linear-gradient(90deg, rgba(244, 63, 94, 0.45), rgba(244, 63, 94, 0.78));
+}
+
+.rchart__trend-copy {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 9px;
+    color: #64748b;
+}
+
 @media (max-width: 320px) {
     .rchart__evidence-strip {
         grid-template-columns: 1fr;
@@ -350,8 +969,104 @@
     border-color: rgba(99, 102, 241, 0.18);
 }
 
+[data-theme="dark"] .rchart__toggle {
+    background: rgba(30, 41, 59, 0.6);
+    border-color: rgba(148, 163, 184, 0.12);
+}
+
+[data-theme="dark"] .rchart__toggle-btn {
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .rchart__toggle-btn--active {
+    background: rgba(15, 23, 42, 0.8);
+    color: #e2e8f0;
+    box-shadow: none;
+}
+
 [data-theme="dark"] .rchart__panel-title {
     color: #94a3b8;
+}
+
+[data-theme="dark"] .rchart__summary {
+    background: rgba(99, 102, 241, 0.08);
+    border-color: rgba(99, 102, 241, 0.16);
+}
+
+[data-theme="dark"] .rchart__inference {
+    background: rgba(16, 185, 129, 0.08);
+    border-color: rgba(16, 185, 129, 0.18);
+}
+
+[data-theme="dark"] .rchart__honesty,
+[data-theme="dark"] .rchart__verdict,
+[data-theme="dark"] .rchart__details {
+    border-color: rgba(148, 163, 184, 0.18);
+}
+
+[data-theme="dark"] .rchart__verdict-copy,
+[data-theme="dark"] .rchart__inference-copy,
+[data-theme="dark"] .rchart__conclusion,
+[data-theme="dark"] .rchart__layer-caption,
+[data-theme="dark"] .rchart__variance-copy,
+[data-theme="dark"] .rchart__null-copy,
+[data-theme="dark"] .rchart__details > summary {
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .rchart__layer-title,
+[data-theme="dark"] .rchart__honesty-title,
+[data-theme="dark"] .rchart__verdict-title,
+[data-theme="dark"] .rchart__inference-title,
+[data-theme="dark"] .rchart__null-title {
+    color: #cbd5e1;
+}
+
+[data-theme="dark"] .rchart__summary-title,
+[data-theme="dark"] .rchart__trend-copy,
+[data-theme="dark"] .rchart__residual-label {
+    color: #cbd5e1;
+}
+
+[data-theme="dark"] .rchart__stat-card {
+    background: rgba(15, 23, 42, 0.3);
+    border-color: rgba(148, 163, 184, 0.14);
+}
+
+[data-theme="dark"] .rchart__stat-card-value {
+    color: #e2e8f0;
+}
+
+[data-theme="dark"] .rchart__stat-card-copy {
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .rchart__effect-meter-value {
+    color: #cbd5e1;
+}
+
+[data-theme="dark"] .rchart__tail-label,
+[data-theme="dark"] .rchart__tail-value {
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .rchart__summary-subtitle,
+[data-theme="dark"] .rchart__residual-value {
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .rchart__explain {
+    background: rgba(148, 163, 184, 0.06);
+    border-color: rgba(148, 163, 184, 0.14);
+}
+
+[data-theme="dark"] .rchart__explain-title,
+[data-theme="dark"] .rchart__explain-label {
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .rchart__explain-copy {
+    color: #cbd5e1;
 }
 
 [data-theme="dark"] .rchart__evidence-detail {

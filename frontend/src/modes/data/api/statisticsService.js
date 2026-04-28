@@ -23,7 +23,7 @@
 import { jStat } from 'jstat';
 import { getApiKey, OPENAI_API_URL } from '../../../constants/api';
 import { OPENAI_MODEL } from '../../../constants/models';
-import { EVIDENCE_KINDS, buildFallbackResultEvidence, makeEvidence } from '../utils/evidenceModel';
+import { EVIDENCE_KINDS, buildFallbackResultEvidence, inferStatisticLabel, makeEvidence } from '../utils/evidenceModel';
 
 const ALPHA = 0.05;
 
@@ -44,6 +44,48 @@ function colRaw(spec, name) {
 function fmt(n, decimals = 4) {
     if (n == null || isNaN(n)) return '–';
     return Number(n.toFixed(decimals));
+}
+
+function getGroupedNumericValues(groupCol, valueCol, spec) {
+    const groupRaw = colRaw(spec, groupCol);
+    const valueRaw = colRaw(spec, valueCol);
+    const groups = new Map();
+    const orderedGroups = [];
+    const n = Math.min(groupRaw.length, valueRaw.length);
+
+    for (let i = 0; i < n; i++) {
+        const group = String(groupRaw[i] ?? '').trim();
+        const value = parseFloat(valueRaw[i]);
+        if (!group || Number.isNaN(value)) continue;
+        if (!groups.has(group)) {
+            groups.set(group, []);
+            orderedGroups.push(group);
+        }
+        groups.get(group).push(value);
+    }
+
+    return orderedGroups.map((name) => ({ name, values: groups.get(name) ?? [] }));
+}
+
+function buildEstimatedSummary({ method, significant, pValue, scopeDetails }) {
+    const cat = scopeDetails.variableRoles?.categorical?.[0];
+    const num = scopeDetails.variableRoles?.numeric?.[0];
+    const pText = pValue != null ? ` (p = ${fmt(pValue, 4)})` : '';
+
+    if (scopeDetails.scope === 'overall_multi_group' && cat && num) {
+        return `${method} ${significant ? 'suggests' : 'does not suggest'} that ${num} differs across groups of ${cat}${pText}. This is an AI estimate and should be interpreted as an overall multi-group comparison, not a single pairwise contrast.`;
+    }
+
+    if (scopeDetails.scope === 'pairwise_group' && cat && num) {
+        return `${method} ${significant ? 'suggests' : 'does not suggest'} a difference in ${num} between groups of ${cat}${pText}. This is an AI estimate based on the structured column context.`;
+    }
+
+    if (scopeDetails.scope === 'overall_relationship' && scopeDetails.variableRoles?.numeric?.length >= 2) {
+        const [x, y] = scopeDetails.variableRoles.numeric;
+        return `${method} ${significant ? 'suggests' : 'does not suggest'} a relationship between ${x} and ${y}${pText}. This is an AI estimate based on the structured column context.`;
+    }
+
+    return `${method} ${significant ? 'suggests' : 'does not suggest'} the hypothesized effect${pText}. This is an AI estimate based on the structured column context.`;
 }
 
 // ── Pearson Correlation ───────────────────────────────────────────────────────
@@ -90,6 +132,8 @@ function pearsonCorrelation(x, y, meta = {}) {
                 significant ? 'The fitted trend is statistically reliable.' : 'The fitted trend is weak relative to the spread.',
             ],
             details: {
+                statLabel: 'r',
+                scope: 'overall_relationship',
                 sampleSize: n,
                 direction: dir,
                 pValue: fmt(pValue),
@@ -102,21 +146,13 @@ function pearsonCorrelation(x, y, meta = {}) {
 // ── Two-Sample t-Test ─────────────────────────────────────────────────────────
 
 function twoSampleTTest(groupCol, valueCol, spec) {
-    const groupRaw = colRaw(spec, groupCol);
-    const valueRaw = colRaw(spec, valueCol);
-
-    const groups = [...new Set(groupRaw.filter(Boolean))];
+    const grouped = getGroupedNumericValues(groupCol, valueCol, spec);
+    const groups = grouped.map((group) => group.name);
     if (groups.length < 2) throw new Error('Need at least 2 distinct groups for t-test.');
 
     const [g1, g2] = groups;
-    const arr1 = valueRaw
-        .map((v, i) => ({ v: parseFloat(v), g: groupRaw[i] }))
-        .filter(({ v, g }) => !isNaN(v) && g === g1)
-        .map(({ v }) => v);
-    const arr2 = valueRaw
-        .map((v, i) => ({ v: parseFloat(v), g: groupRaw[i] }))
-        .filter(({ v, g }) => !isNaN(v) && g === g2)
-        .map(({ v }) => v);
+    const arr1 = grouped.find((group) => group.name === g1)?.values ?? [];
+    const arr2 = grouped.find((group) => group.name === g2)?.values ?? [];
 
     if (arr1.length < 2 || arr2.length < 2)
         throw new Error('Not enough values in each group for t-test.');
@@ -133,6 +169,12 @@ function twoSampleTTest(groupCol, valueCol, spec) {
                (Math.pow(s1*s1/n1, 2)/(n1-1) + Math.pow(s2*s2/n2, 2)/(n2-1));
     const pValue = 2 * (1 - jStat.studentt.cdf(Math.abs(t), df));
     const significant = pValue < ALPHA;
+    const meanDiff = m1 - m2;
+    const tCrit = jStat.studentt.inv(1 - ALPHA / 2, df);
+    const ciLow = meanDiff - tCrit * se;
+    const ciHigh = meanDiff + tCrit * se;
+    const pooledStd = Math.sqrt((((n1 - 1) * s1 * s1) + ((n2 - 1) * s2 * s2)) / Math.max(1, n1 + n2 - 2));
+    const cohensD = pooledStd > 0 ? meanDiff / pooledStd : 0;
 
     return {
         supported: true,
@@ -147,17 +189,97 @@ function twoSampleTTest(groupCol, valueCol, spec) {
             kind: EVIDENCE_KINDS.GROUP_COMPARISON,
             renderHint: 'group_distribution',
             effectLabel: 'mean diff',
-            effectValue: fmt(m1 - m2, 2),
+            effectValue: fmt(meanDiff, 2),
             variables: [groupCol, valueCol],
             notes: [
                 'Interpret the mean shift together with how much the groups overlap.',
             ],
             details: {
+                statLabel: 't',
+                scope: 'pairwise_group',
+                groupCount: 2,
+                groupLabels: [g1, g2],
+                meanDifference: fmt(meanDiff, 2),
+                meanDifferenceCi: [fmt(ciLow, 2), fmt(ciHigh, 2)],
+                effectSizeLabel: "Cohen's d",
+                effectSizeValue: fmt(cohensD, 2),
                 groups: [
                     { name: g1, mean: fmt(m1, 2), std: fmt(s1, 2), count: n1 },
                     { name: g2, mean: fmt(m2, 2), std: fmt(s2, 2), count: n2 },
                 ],
                 degreesOfFreedom: fmt(df, 1),
+                pValue: fmt(pValue),
+                significant,
+            },
+        }),
+    };
+}
+
+function oneWayAnova(groupCol, valueCol, spec) {
+    const grouped = getGroupedNumericValues(groupCol, valueCol, spec)
+        .filter((group) => group.values.length >= 2);
+    if (grouped.length < 2) throw new Error('Need at least 2 groups with 2 or more values for ANOVA.');
+
+    const allValues = grouped.flatMap((group) => group.values);
+    const totalN = allValues.length;
+    const grandMean = jStat.mean(allValues);
+    const k = grouped.length;
+
+    const ssBetween = grouped.reduce((sum, group) => {
+        const mean = jStat.mean(group.values);
+        return sum + group.values.length * (mean - grandMean) ** 2;
+    }, 0);
+    const ssWithin = grouped.reduce((sum, group) => {
+        const mean = jStat.mean(group.values);
+        return sum + group.values.reduce((inner, value) => inner + (value - mean) ** 2, 0);
+    }, 0);
+
+    const df1 = k - 1;
+    const df2 = totalN - k;
+    if (df1 <= 0 || df2 <= 0) throw new Error('Not enough degrees of freedom for ANOVA.');
+
+    const msBetween = ssBetween / df1;
+    const msWithin = ssWithin / df2;
+    const f = msWithin === 0 ? Infinity : msBetween / msWithin;
+    const pValue = jStat.ftest(f, df1, df2);
+    const significant = pValue < ALPHA;
+    const ssTotal = ssBetween + ssWithin;
+    const etaSquared = ssTotal > 0 ? ssBetween / ssTotal : 0;
+
+    return {
+        supported: true,
+        method: 'ANOVA',
+        testType: 'group_difference',
+        stat: fmt(f),
+        pValue: fmt(pValue),
+        significant,
+        summary: `ANOVA ${significant ? 'suggests' : 'does not suggest'} that ${valueCol} differs across groups of ${groupCol} (F(${df1}, ${df2}) = ${fmt(f, 3)}, p = ${fmt(pValue, 4)}).`,
+        aiAssisted: false,
+        evidence: makeEvidence({
+            kind: EVIDENCE_KINDS.GROUP_COMPARISON,
+            renderHint: 'group_distribution',
+            effectLabel: 'F',
+            effectValue: fmt(f, 3),
+            variables: [groupCol, valueCol],
+            notes: [
+                'This is an overall multi-group comparison. Strong overlap between some pairs can still coexist with an overall group effect.',
+            ],
+            details: {
+                statLabel: 'F',
+                scope: 'overall_multi_group',
+                groupCount: grouped.length,
+                groupLabels: grouped.map((group) => group.name),
+                grandMean: fmt(grandMean, 2),
+                etaSquared: fmt(etaSquared, 3),
+                effectSizeLabel: 'η²',
+                effectSizeValue: fmt(etaSquared, 3),
+                groups: grouped.map((group) => ({
+                    name: group.name,
+                    mean: fmt(jStat.mean(group.values), 2),
+                    std: fmt(jStat.stdev(group.values, true), 2),
+                    count: group.values.length,
+                })),
+                degreesOfFreedom: [df1, df2],
                 pValue: fmt(pValue),
                 significant,
             },
@@ -201,6 +323,8 @@ function chiSquareTest(col1Name, col2Name, spec) {
     const df      = (cats1.length - 1) * (cats2.length - 1);
     const pValue  = 1 - jStat.chisquare.cdf(chi2, df);
     const significant = pValue < ALPHA;
+    const minDim = Math.min(cats1.length - 1, cats2.length - 1);
+    const cramersV = minDim > 0 && total > 0 ? Math.sqrt(chi2 / (total * minDim)) : 0;
 
     return {
         supported: true,
@@ -221,7 +345,12 @@ function chiSquareTest(col1Name, col2Name, spec) {
                 'The strongest cells are the ones farthest from their expected counts.',
             ],
             details: {
+                statLabel: 'χ²',
+                scope: 'overall_categorical',
                 degreesOfFreedom: df,
+                sampleSize: total,
+                effectSizeLabel: "Cramer's V",
+                effectSizeValue: fmt(cramersV, 3),
                 pValue: fmt(pValue),
                 significant,
             },
@@ -236,7 +365,6 @@ const UNSUPPORTED_PATTERNS = [
     /mann.?whitney/i,
     /wilcoxon/i,
     /kruskal/i,
-    /anova/i,
     /friedman/i,
 ];
 
@@ -263,6 +391,13 @@ export function runTest(hypothesis, spec) {
         const catVars = variables.filter(
             (v) => spec.columns.find((c) => c.name === v)?.type !== 'numeric'
         );
+
+        if (/anova/i.test(testName)) {
+            if (catVars.length >= 1 && numericVars.length >= 1) {
+                return oneWayAnova(catVars[0], numericVars[0], spec);
+            }
+            return { supported: false, testName: `${testName} (need 1 categorical and 1 numeric column)` };
+        }
 
         if (type === 'association' || /pearson/i.test(testName)) {
             if (numericVars.length < 2)
@@ -309,9 +444,31 @@ Return a JSON object with exactly these fields:
 - stat: estimated test statistic as a number (use null if not estimable)
 - pValue: estimated p-value as a number between 0 and 1
 - significant: boolean, true if p < 0.05
-- summary: one plain-English sentence describing the result and what it means
+- interpretation: one short sentence about the likely result, without introducing any variables other than the provided ones
 
-Be specific about what the result suggests, referencing the actual column names and values from the stats provided.`;
+Do not invent new variables. Do not mention columns that are not in the provided relevant-column list.`;
+
+function buildScopeDetails(hypothesis, spec) {
+    const variables = hypothesis.variables ?? [];
+    const relevantCols = spec.columns.filter((c) => variables.includes(c.name));
+    const categoricalCols = relevantCols.filter((c) => c.type !== 'numeric');
+    const numericCols = relevantCols.filter((c) => c.type === 'numeric');
+
+    const primaryCategorical = categoricalCols[0] ?? null;
+    const groupLabels = (primaryCategorical?.top_values ?? []).map((tv) => String(tv.value));
+    const groupCount = primaryCategorical?.unique_count ?? groupLabels.length ?? 0;
+    const scope = groupCount > 2 ? 'overall_multi_group' : groupCount === 2 ? 'pairwise_group' : 'single_scope';
+
+    return {
+        scope,
+        variableRoles: {
+            categorical: categoricalCols.map((c) => c.name),
+            numeric: numericCols.map((c) => c.name),
+        },
+        groupCount,
+        groupLabels,
+    };
+}
 
 /**
  * AI fallback for unsupported tests.
@@ -323,6 +480,7 @@ Be specific about what the result suggests, referencing the actual column names 
  * @returns {Promise<object>}
  */
 export async function fetchTestResult(hypothesis, metadata, spec, description = '') {
+    const scopeDetails = buildScopeDetails(hypothesis, spec);
     const relevantCols = spec.columns.filter((c) =>
         (hypothesis.variables ?? []).includes(c.name)
     );
@@ -383,7 +541,12 @@ ${colLines || '  (no column stats available)'}`;
         stat:        parsed.stat        ?? null,
         pValue:      parsed.pValue      ?? null,
         significant: parsed.significant ?? false,
-        summary:     parsed.summary     ?? 'AI could not estimate a clear result.',
+        summary:     buildEstimatedSummary({
+            method: parsed.method ?? hypothesis.suggested_test,
+            significant: parsed.significant ?? false,
+            pValue: parsed.pValue ?? null,
+            scopeDetails,
+        }),
         evidence:    buildFallbackResultEvidence({
             hypothesisType: hypothesis.type ?? '',
             variables: hypothesis.variables ?? [],
@@ -391,6 +554,10 @@ ${colLines || '  (no column stats available)'}`;
             pValue: parsed.pValue ?? null,
             significant: parsed.significant ?? false,
             method: parsed.method ?? hypothesis.suggested_test,
+            details: {
+                statLabel: inferStatisticLabel(parsed.method ?? hypothesis.suggested_test, undefined),
+                ...scopeDetails,
+            },
         }),
     };
 }
