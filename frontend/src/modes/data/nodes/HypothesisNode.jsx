@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import useDataModeStore from '../store/useDataModeStore';
-import { runTest, fetchTestResult } from '../api/statisticsService';
+import { runTest, fetchTestResult, fetchResultNarrative } from '../api/statisticsService';
 import { buildFallbackResultEvidence } from '../utils/evidenceModel';
 import './nodes.css';
 
@@ -26,10 +26,11 @@ const RESULT_EDGE = {
 };
 
 function HypothesisNode({ id, data, selected }) {
-    const updateNodeData          = useDataModeStore((s) => s.updateNodeData);
     const addResultRecord         = useDataModeStore((s) => s.addResultRecord);
-    const updateHypothesisStatus  = useDataModeStore((s) => s.updateHypothesisStatus);
     const updateHypothesisStatement = useDataModeStore((s) => s.updateHypothesisStatement);
+    const hasExistingResult = useDataModeStore((s) =>
+        Array.from(s.results.values()).some((record) => record.parentHypothesisNodeId === id)
+    );
     const [editing, setEditing]       = useState(false);
     const [draft, setDraft]           = useState('');
     // 'idle' | 'running' | 'needs_consent' | 'error'
@@ -47,15 +48,6 @@ function HypothesisNode({ id, data, selected }) {
     };
     const saveEdit   = () => { updateHypothesisStatement(id, draft); setEditing(false); };
     const cancelEdit = () => setEditing(false);
-
-    const handleAccept = (e) => {
-        e.stopPropagation();
-        updateHypothesisStatus(id, status === 'accepted' ? 'pending' : 'accepted');
-    };
-    const handleReject = (e) => {
-        e.stopPropagation();
-        updateHypothesisStatus(id, status === 'rejected' ? 'pending' : 'rejected');
-    };
 
     // ── Spawn a ResultNode below this hypothesis ──────────────────────────
 
@@ -90,6 +82,7 @@ function HypothesisNode({ id, data, selected }) {
             data:     {
                 ...result,
                 identifier,
+                parentHypothesisNodeId: id,
                 columns,
                 testType,
                 chart_type: data.chart_type ?? '',
@@ -119,17 +112,22 @@ function HypothesisNode({ id, data, selected }) {
 
     // ── Run Test (library path) ───────────────────────────────────────────
 
-    const handleRunTest = (e) => {
+    const handleRunTest = async (e) => {
         e.stopPropagation();
         setRunError('');
         setRunStatus('running');
 
-        const { datasetSpec } = useDataModeStore.getState();
+        const { datasetSpec, datasetMetadata, datasetDescription } = useDataModeStore.getState();
         if (!datasetSpec) { setRunStatus('idle'); return; }
 
         const result = runTest(data, datasetSpec);
 
         if (result.supported) {
+            try {
+                result.narrative = await fetchResultNarrative(result, data, datasetMetadata, datasetSpec, datasetDescription);
+            } catch {
+                // fall back to renderer defaults if narrative generation fails
+            }
             spawnResult(result);
             setRunStatus('idle');
         } else {
@@ -147,6 +145,11 @@ function HypothesisNode({ id, data, selected }) {
             const { datasetMetadata, datasetSpec, datasetDescription } =
                 useDataModeStore.getState();
             const result = await fetchTestResult(data, datasetMetadata, datasetSpec, datasetDescription);
+            try {
+                result.narrative = await fetchResultNarrative(result, data, datasetMetadata, datasetSpec, datasetDescription);
+            } catch {
+                // fall back to renderer defaults if narrative generation fails
+            }
             spawnResult(result);
             setRunStatus('idle');
         } catch (err) {
@@ -162,6 +165,8 @@ function HypothesisNode({ id, data, selected }) {
 
     const runBtnLabel = runStatus === 'running'
         ? 'Running…'
+        : hasExistingResult
+            ? 'Test already run'
         : data.suggested_test
             ? `Run ${data.suggested_test}`
             : 'Run Test';
@@ -269,23 +274,9 @@ function HypothesisNode({ id, data, selected }) {
             {/* Actions */}
             <div className="dm-node__actions">
                 <button
-                    className={`dm-node__action-btn ${status === 'accepted' ? 'dm-node__action-btn--active-green' : 'dm-node__action-btn--ghost'}`}
-                    onClick={handleAccept}
-                    title={status === 'accepted' ? 'Undo accept' : 'Accept this hypothesis'}
-                >
-                    Accept
-                </button>
-                <button
-                    className={`dm-node__action-btn ${status === 'rejected' ? 'dm-node__action-btn--active-red' : 'dm-node__action-btn--ghost'}`}
-                    onClick={handleReject}
-                    title={status === 'rejected' ? 'Undo reject' : 'Reject this hypothesis'}
-                >
-                    Reject
-                </button>
-                <button
                     className="dm-node__action-btn dm-node__action-btn--primary"
                     onClick={handleRunTest}
-                    disabled={runStatus === 'running' || runStatus === 'needs_consent' || status === 'rejected'}
+                    disabled={runStatus === 'running' || runStatus === 'needs_consent' || status === 'rejected' || hasExistingResult}
                     title={data.suggested_test ? `Run: ${data.suggested_test}` : 'Run statistical test'}
                 >
                     {runBtnLabel}

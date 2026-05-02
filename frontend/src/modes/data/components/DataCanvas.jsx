@@ -8,7 +8,7 @@ import {
     applyEdgeChanges,
     useReactFlow,
 } from '@xyflow/react';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import '@xyflow/react/dist/style.css';
 import useDataModeStore from '../store/useDataModeStore';
 import { layoutGraph } from '../utils/layoutGraph';
@@ -18,9 +18,10 @@ import { layoutGraph } from '../utils/layoutGraph';
  * fitView after repositioning nodes.
  *
  * Triggers re-layout when:
- *   • a node or edge is added / removed  (nodes.length / edges.length)
- *   • the DatasetSummaryNode is expanded or collapsed  (summaryCollapsed)
- *     because its rendered height changes dramatically
+ *   • a node or edge is added / removed
+ *   • the DatasetSummaryNode is expanded or collapsed
+ *   • React Flow measures materially different node dimensions
+ *     (important for wide / tall nodes like DatasetSummaryNode and ResultNode)
  *
  * Does NOT re-layout when a user drags a node — drag only changes
  * node positions, not the counts or the collapsed flag.
@@ -37,6 +38,18 @@ function LayoutEngine() {
         (s) => s.nodes.find((n) => n.type === 'datasetsummary')?.data?.collapsed ?? true
     );
 
+    const layoutSignature = useMemo(() => (
+        nodes
+            .map((node) => {
+                const measuredWidth = Math.round(node.measured?.width ?? node.width ?? 0);
+                const measuredHeight = Math.round(node.measured?.height ?? node.height ?? 0);
+                const collapsed = node.type === 'datasetsummary' ? (node.data?.collapsed ? 'c' : 'e') : '';
+                return `${node.id}:${node.type}:${collapsed}:${measuredWidth}x${measuredHeight}`;
+            })
+            .sort()
+            .join('|')
+    ), [nodes]);
+
     // Avoid running layout on the very first mount with no nodes
     const hasMounted = useRef(false);
 
@@ -51,7 +64,7 @@ function LayoutEngine() {
         setNodes(laid);
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [nodes.length, edges.length, summaryCollapsed]);
+    }, [layoutSignature, edges.length, summaryCollapsed]);
 
     return null;
 }

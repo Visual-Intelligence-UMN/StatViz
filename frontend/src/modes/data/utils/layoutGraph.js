@@ -20,7 +20,7 @@ const ESTIMATE = {
     hypothesis:     { width: 280, height: 330 },
     column:         { width: 240, height: 130 },
     test:           { width: 280, height: 180 },
-    result:         { width: 280, height: 180 },
+    result:         { width: 660, height: 420 },
     interpretation: { width: 280, height: 180 },
     nextstep:       { width: 280, height: 180 },
 };

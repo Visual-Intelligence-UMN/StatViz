@@ -93,6 +93,8 @@
 
 .dm-node--result {
     border-color: #10b981;
+    min-width: 560px;
+    max-width: 760px;
 }
 
 .dm-node--result .dm-node__header {

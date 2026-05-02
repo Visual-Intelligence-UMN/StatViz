@@ -42,6 +42,15 @@ export function inferEvidenceKindFromHypothesisType(type = '') {
     }
 }
 
+export function inferEvidenceKindFromMethod(method = '') {
+    if (/pearson|spearman/i.test(method)) return EVIDENCE_KINDS.TREND;
+    if (/welch|t-?test|mann.?whitney|wilcoxon|anova|kruskal|friedman/i.test(method)) return EVIDENCE_KINDS.GROUP_COMPARISON;
+    if (/chi-?square/i.test(method)) return EVIDENCE_KINDS.CONTINGENCY_DEVIATION;
+    if (/grubbs|iqr|outlier/i.test(method)) return EVIDENCE_KINDS.OUTLIER_SIGNAL;
+    if (/shapiro|anderson|kolmogorov|normal/i.test(method)) return EVIDENCE_KINDS.DISTRIBUTION_SHAPE;
+    return EVIDENCE_KINDS.UNKNOWN;
+}
+
 export function makeEvidence({
     kind = EVIDENCE_KINDS.UNKNOWN,
     renderHint = null,
@@ -89,9 +98,14 @@ export function buildFallbackResultEvidence({
     method = '',
     details = {},
 } = {}) {
-    const kind = inferEvidenceKindFromHypothesisType(hypothesisType) !== EVIDENCE_KINDS.UNKNOWN
-        ? inferEvidenceKindFromHypothesisType(hypothesisType)
-        : inferEvidenceKindFromChartType(chartType);
+    const methodKind = inferEvidenceKindFromMethod(method);
+    const hypothesisKind = inferEvidenceKindFromHypothesisType(hypothesisType);
+    const chartKind = inferEvidenceKindFromChartType(chartType);
+    const kind = methodKind !== EVIDENCE_KINDS.UNKNOWN
+        ? methodKind
+        : hypothesisKind !== EVIDENCE_KINDS.UNKNOWN
+            ? hypothesisKind
+            : chartKind;
 
     const statLabel = inferStatisticLabel(method, kind);
     let effectLabel = '';

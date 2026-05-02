@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import useDataModeStore from '../store/useDataModeStore';
 import { refineHypothesis, fetchTestSuggestions } from '../api/customHypothesisService';
-import { runTest, fetchTestResult } from '../api/statisticsService';
+import { runTest, fetchTestResult, fetchResultNarrative } from '../api/statisticsService';
 import { buildFallbackResultEvidence } from '../utils/evidenceModel';
 import './nodes.css';
 
@@ -133,6 +133,7 @@ function CustomHypothesisNode({ id, data, selected }) {
             data: {
                 ...result,
                 identifier,
+                parentHypothesisNodeId: id,
                 columns:    suggestion.variables ?? [],
                 chart_type: suggestion.chart_type ?? '',
                 evidence,
@@ -159,7 +160,7 @@ function CustomHypothesisNode({ id, data, selected }) {
 
     // ── Step 3: Run test ─────────────────────────────────────────────────
 
-    const handleRun = (e) => {
+    const handleRun = async (e) => {
         e.stopPropagation();
         const suggestion = suggestions[selectedIdx];
         if (!suggestion || running) return;
@@ -167,7 +168,7 @@ function CustomHypothesisNode({ id, data, selected }) {
         setRunError('');
         setNeedsConsent(false);
 
-        const { datasetSpec } = useDataModeStore.getState();
+        const { datasetSpec, datasetMetadata, datasetDescription } = useDataModeStore.getState();
         if (!datasetSpec) { setRunning(false); return; }
 
         const hypothesis = {
@@ -178,11 +179,17 @@ function CustomHypothesisNode({ id, data, selected }) {
         };
 
         const result = runTest(hypothesis, datasetSpec);
-        setRunning(false);
 
         if (result.supported) {
+            try {
+                result.narrative = await fetchResultNarrative(result, hypothesis, datasetMetadata, datasetSpec, datasetDescription);
+            } catch {
+                // fall back to renderer defaults if AI summary generation fails
+            }
+            setRunning(false);
             spawnResult(result, suggestion);
         } else {
+            setRunning(false);
             setUnsupported(result.testName ?? suggestion.test_name);
             setNeedsConsent(true);
         }
@@ -205,6 +212,11 @@ function CustomHypothesisNode({ id, data, selected }) {
             const result = await fetchTestResult(
                 hypothesis, datasetMetadata, datasetSpec, datasetDescription
             );
+            try {
+                result.narrative = await fetchResultNarrative(result, hypothesis, datasetMetadata, datasetSpec, datasetDescription);
+            } catch {
+                // fall back to renderer defaults if AI summary generation fails
+            }
             spawnResult(result, suggestion);
         } catch (err) {
             setRunError(err.message ?? 'AI estimation failed.');

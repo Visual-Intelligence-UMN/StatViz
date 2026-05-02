@@ -1,6 +1,6 @@
 # StatViz — Current System Structure & Details
 
-> **Last Updated:** April 24, 2026
+> **Last Updated:** May 1, 2026
 > **Author:** Dipan Bag (bag00003@umn.edu)
 > **Project:** UMN Capstone Project, Spring 2026
 > **Hosted At:** GitHub Pages via `actions/deploy-pages`, route `/mindmapper/statviz`
@@ -33,9 +33,9 @@
 
 ## 1. Project Overview
 
-StatViz is a browser-only, node-based exploratory data analysis workspace. Users upload a CSV dataset, inspect its summary, generate AI-assisted insights, turn those insights into statistical hypotheses, run tests in-browser when possible, and capture results as connected nodes on a React Flow canvas.
+StatViz is a browser-only, node-based exploratory data analysis workspace designed to help users move from raw tabular data to interpretable statistical conclusions. Users upload a single CSV dataset, inspect its structure, generate AI-assisted insights, turn those insights into hypotheses, run statistical tests in-browser when possible, and inspect results as connected nodes on a React Flow canvas.
 
-The current system is centered around a **data analysis pipeline**:
+The current system is centered around a **visual analysis pipeline**:
 
 1. Upload dataset
 2. Parse schema and compute column statistics
@@ -55,10 +55,12 @@ There is no backend. CSV parsing, statistics, graph state, charts, and OpenAI re
 - AI-generated insight nodes
 - AI-generated hypothesis nodes
 - Custom free-text hypothesis workflow
-- In-browser statistical testing using `jstat`
+- In-browser statistical testing using `jstat`, including Pearson, Welch's t-test, chi-square, and one-way ANOVA
 - AI fallback for unsupported tests
+- Result nodes that combine a verdict summary with evidence, effect, and evidence-vs-chance layers
 - Right sidebar with dark mode toggle and dataset-aware AI chat
 - Client-side tool calling over the live dataset and analysis context
+- Scoped Ask AI follow-ups that can target the full dataset or a specific analysis branch
 
 ---
 
@@ -354,6 +356,11 @@ Tool result cards currently include:
 - correlation matrix heatmap
 - analysis summary metrics
 
+The chat experience now also supports:
+- scoped follow-ups tied to tagged nodes / their connected analysis lineage
+- intent-aware routing between dataset analysis, analysis follow-ups, app-help, harmless social messages, and genuine out-of-scope requests
+- client-side tool execution over both the dataset spec and the normalized analysis registry
+
 ---
 
 ## 8. Node Types Reference
@@ -392,7 +399,12 @@ Current behaviors:
 Main actions:
 - `Generate Insights`
 - `Custom Hypothesis`
-- `Explore Columns` (currently placeholder / no-op)
+
+Important current behavior:
+- identifier-like numeric columns are filtered out of summary visuals
+- narrow datasets render as a visual dashboard
+- wide datasets show a visual preview first and collapse the remaining columns below
+- the footer action area is visually separated as an `Analysis Actions` panel
 
 ### InsightNode
 
@@ -432,12 +444,16 @@ From there the user selects a test and runs it through the same stats/fallback s
 
 Displays:
 - method name
-- significance verdict
-- statistic
-- p-value
-- plain-English result summary
-- `AI-assisted` badge when applicable
+- verdict summary in plain language
 - inline `ResultChart`
+- `AI-assisted` badge when applicable
+
+The current `ResultChart` is no longer a single generic mini-chart. It renders a layered result explanation:
+- **Layer 1 — Evidence:** what the raw data looks like
+- **Layer 2 — Effect:** what the test measured in data units, with uncertainty
+- **Layer 3 — Evidence vs Chance:** where the observed result lands relative to a null/reference distribution
+
+An expandable details section contains lower-level test details and supporting labels.
 
 ---
 
@@ -473,6 +489,27 @@ Charts are split between reusable chart-data helpers and React renderers.
 - `getCorrelationMatrix`
 
 The correlation matrix helper excludes obvious identifier-like numeric columns using name and uniqueness heuristics so ID columns do not dominate the heatmap.
+
+### Result-chart visual structure
+
+`ResultChart.jsx` now branches on an evidence model rather than only on chart type strings. The active result families are:
+- group comparison
+- trend / association
+- contingency deviation
+- distribution shape
+- outlier signal
+
+Each family renders into the same high-level result-card shell:
+1. verdict summary
+2. Layer 1 — Evidence
+3. Layer 2 — Effect
+4. Layer 3 — Evidence vs Chance
+5. expandable details
+
+This is intended to separate:
+- what the data looks like
+- what effect the test estimated
+- why the result is surprising or unsurprising under the null
 
 ### ChatPanel chart reuse
 
@@ -536,7 +573,7 @@ Contains both:
 
 ### `chatTools.js`
 
-This is the most important newer addition missing from earlier documentation.
+This file powers the right-sidebar Ask AI assistant.
 
 It exports:
 - `TOOL_DEFINITIONS`
@@ -565,6 +602,16 @@ Current client-side tools are:
 
 That context comes from `buildAnalysisContext()` in `analysisContext.js`.
 
+The Ask AI flow now also includes an **intent-classification step** before normal streaming. The classifier distinguishes:
+- `dataset_analysis`
+- `analysis_followup`
+- `social`
+- `app_help`
+- `out_of_scope`
+- `prompt_injection`
+
+Only truly out-of-scope or adversarial requests are refused. Harmless social/opening messages and app-help questions are still answered, but the assistant remains grounded in the dataset-analysis experience.
+
 ---
 
 ## 11. Statistics Engine
@@ -579,6 +626,7 @@ The app currently computes these directly in-browser with `jstat`:
 |------|---------|
 | Pearson correlation | `association` hypotheses or test names matching Pearson |
 | Welch's two-sample t-test | `group_difference` / `distribution_difference` flows with 1 categorical + 1 numeric variable |
+| One-way ANOVA | test names matching ANOVA with 1 categorical + 1 numeric variable |
 | Chi-square test of independence | `categorical_relationship` flows with 2 categorical variables |
 
 ### Unsupported-test handling
@@ -588,7 +636,6 @@ Tests matching patterns such as:
 - Mann-Whitney
 - Wilcoxon
 - Kruskal
-- ANOVA
 - Friedman
 
 return `{ supported: false }` and trigger a user-facing consent step in the node UI before calling OpenAI for an estimated result.
@@ -603,6 +650,16 @@ return `{ supported: false }` and trigger a user-facing consent step in the node
 - one-sentence explanation
 
 AI-estimated results are flagged with `aiAssisted: true`.
+
+### Evidence model
+
+Native and AI-assisted test results are normalized into a shared evidence contract. That contract carries:
+- evidence family / kind
+- effect label and value
+- variables involved
+- structured details such as group means, effect sizes, Cramer's V, or η²
+
+This evidence model is what allows `ResultChart.jsx` to render different result families inside one consistent UI shell.
 
 ### Result shape
 
@@ -709,6 +766,22 @@ The right sidebar is now a first-class part of the Data Mode shell.
 - disabled until a dataset is uploaded
 - tool-enabled assistant over both the dataset and the current analysis graph
 
+### Ask AI interaction model
+
+The assistant is meant to help in two complementary ways:
+- answer questions about the full uploaded dataset
+- answer follow-up questions about a specific analysis branch
+
+Branch-scoped conversations work through node-tagging metadata and scoped analysis context, not by copying static text out of the node cards.
+
+The assistant can currently:
+- summarize the dataset
+- describe columns and generate visuals
+- generate new insights
+- run supported tests from chat
+- summarize the current analysis graph
+- interpret scoped nodes / branches using the live normalized analysis context
+
 ### Why this matters architecturally
 
 The analysis is no longer only node-driven. Users can now inspect and continue the same analysis in a conversational way without leaving the canvas or rebuilding context manually.
@@ -754,6 +827,7 @@ The theme is not yet persisted across sessions.
 9. User runs the suggested test
 10. Result is computed in-browser or estimated through AI fallback
 11. A `ResultNode` is spawned and registered
+12. The result card renders the layered explanation view (Evidence / Effect / Evidence vs Chance)
 
 ### Workflow C: Custom Hypothesis
 
@@ -770,10 +844,18 @@ The theme is not yet persisted across sessions.
 1. User uploads a dataset
 2. User opens the right sidebar
 3. User asks a dataset or analysis question
-4. `streamChat()` sends the conversation plus tool definitions
-5. OpenAI may call client-side tools
-6. Tool results render as cards inline in the chat
-7. Assistant continues with an interpreted answer using both tool output and the live analysis context
+4. `streamChat()` first classifies the latest intent
+5. If the request is allowed, it sends the conversation plus tool definitions and scoped analysis metadata
+6. OpenAI may call client-side tools
+7. Tool results render as cards inline in the chat
+8. Assistant continues with an interpreted answer using both tool output and the live analysis context
+
+### Workflow E: Scoped Ask AI follow-up
+
+1. User references a node or analysis branch in the chat
+2. Scope metadata is resolved from the current graph
+3. `chatTools.js` builds a scoped analysis context through `buildAnalysisContext(...)`
+4. The assistant answers using that scoped branch instead of treating the request as a whole-dataset question
 
 ---
 
@@ -803,9 +885,8 @@ Most edges are created explicitly by the node components when new downstream nod
 The OpenAI API key is entered through `ApiKeyModal` and stored in `sessionStorage` under `sv_openai_key`.
 
 Important current properties:
-- not bundled into the frontend
-- not stored in project files
-- persists only for the current browser session
+- not bundled into the frontend build
+- intended to persist only for the current browser session via `sessionStorage`
 - read at request time by `getApiKey()`
 
 The modal copy explicitly states that the key is sent directly to OpenAI and not elsewhere.
@@ -835,11 +916,14 @@ The project deploys to GitHub Pages via `.github/workflows/deploy.yml`.
 
 ## Summary Snapshot
 
-As of April 24, 2026, the live StatViz system is best understood as a **client-side visual analysis canvas plus a synchronized analysis registry plus a right-sidebar AI copilot**.
+As of May 1, 2026, the live StatViz system is best understood as a **client-side visual analysis canvas plus a synchronized analysis registry plus a right-sidebar AI copilot**.
 
 The most important current architectural updates relative to older descriptions are:
 - the active Data Mode root is under `modes/data/`
 - the right sidebar now includes dark mode and Ask AI
 - `chatTools.js` adds client-side tool calling over dataset and analysis state
+- Ask AI now includes intent-aware routing and scoped branch follow-ups
 - the store tracks normalized dataset/insight/hypothesis/result records in parallel with React Flow nodes
+- result nodes now use a layered explanation format rather than a single verdict + chart
+- one-way ANOVA is now supported natively in the browser-side statistics layer
 - the upload → summary → insights → hypotheses → results pipeline is fully wired end to end

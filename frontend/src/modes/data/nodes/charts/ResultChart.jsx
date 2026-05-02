@@ -1,8 +1,8 @@
 import { jStat } from 'jstat';
 import {
     ScatterChart, Scatter,
-    BarChart, Bar,
-    XAxis, YAxis, Tooltip, ResponsiveContainer,
+    BarChart, Bar, ErrorBar,
+    XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
     ReferenceLine,
 } from 'recharts';
 import {
@@ -16,7 +16,7 @@ import {
     getIqrOverlapSummary,
     getContingencyEvidence,
 } from './chartData';
-import { buildFallbackResultEvidence, buildResultExplanation, buildResultInterpretation, classifyEffectStrength, EVIDENCE_KINDS } from '../../utils/evidenceModel';
+import { buildFallbackResultEvidence, buildResultInterpretation, classifyEffectStrength, EVIDENCE_KINDS } from '../../utils/evidenceModel';
 import './charts.css';
 
 const TICK = { fontSize: 9, fill: '#94a3b8' };
@@ -33,9 +33,26 @@ function formatNumber(value, digits = 3) {
 function formatPValueLabel(value) {
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) return 'p unavailable';
-    if (numeric <= 0) return 'p < 0.0001';
-    if (numeric < 0.0001) return 'p < 0.0001';
-    return `p = ${formatNumber(numeric, 4)}`;
+    if (numeric < 0.001) return 'p < 0.001';
+    if (numeric < 0.01) return 'p < 0.01';
+    if (numeric < 0.05) return 'p < 0.05';
+    if (numeric < 0.1) return 'p < 0.10';
+    return 'p ≥ 0.10';
+}
+
+function formatPValueTranslation(value, nullSubject = 'random reorderings') {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 'the result is hard to distinguish from chance';
+    const percent = clamp01(1 - numeric) * 100;
+    if (numeric < 0.001) return `more extreme than 99.9% of ${nullSubject}`;
+    if (numeric < 0.01) return `more extreme than ${formatNumber(percent, 1)}% of ${nullSubject}`;
+    if (numeric < 0.05) return `more extreme than ${formatNumber(percent, 0)}% of ${nullSubject}`;
+    if (numeric < 0.1) return `more extreme than ${formatNumber(percent, 0)}% of ${nullSubject}, but still close to chance`;
+    return `well within the range of ${nullSubject}`;
+}
+
+function shouldRenderInlinePValue({ pValue, aiAssisted = false }) {
+    return Number.isFinite(Number(pValue)) && !aiAssisted;
 }
 
 function getNumericShapeSummary(col) {
@@ -81,7 +98,6 @@ function LayerBlock({ label, title, caption, children }) {
     return (
         <div className="rchart__layer">
             <div className="rchart__layer-head">
-                <span className="rchart__layer-label">{label}</span>
                 <span className="rchart__layer-title">{title}</span>
             </div>
             {caption && <div className="rchart__layer-caption">{caption}</div>}
@@ -90,18 +106,58 @@ function LayerBlock({ label, title, caption, children }) {
     );
 }
 
-function VerdictSummary({ interpretation, significant, aiAssisted }) {
-    if (!interpretation) return null;
+function MainChartBlock({ title = '', caption = '', chanceCopy = '', children }) {
+    return (
+        <div className="rchart__main-block">
+            {title ? (
+                <div className="rchart__layer-head">
+                    <span className="rchart__layer-title">{title}</span>
+                </div>
+            ) : null}
+            {caption ? <div className="rchart__layer-caption">{caption}</div> : null}
+            <div className="rchart__main-chart">{children}</div>
+            {chanceCopy ? (
+                <div className="rchart__chance-strip">
+                    <span className="rchart__chance-title">Chance read</span>
+                    <span className="rchart__chance-copy">{chanceCopy}</span>
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
+function buildVisualInterpretationOverride({ interpretation, evidence, numeric = [], aiAssisted = false }) {
+    if (!interpretation) return interpretation;
+    if (evidence?.kind === EVIDENCE_KINDS.OUTLIER_SIGNAL && aiAssisted && numeric[0]) {
+        const fence = getOutlierFence(numeric[0]);
+        const values = (numeric[0]?.raw_values ?? []).map((value) => parseFloat(value)).filter((value) => !Number.isNaN(value));
+        const flaggedCount = Number.isFinite(fence) ? values.filter((value) => value > fence).length : 0;
+        if (flaggedCount === 0) {
+            return {
+                ...interpretation,
+                headline: 'No clear outlier signal in the sample',
+                takeaway: 'The AI-assisted result suggested an outlier pattern, but the current sample does not show values crossing the outlier fence. Treat this as a weak prompt to investigate further, not as confirmed evidence.',
+            };
+        }
+    }
+    return interpretation;
+}
+
+function VerdictSummary({ interpretation, significant, aiAssisted, narrativeLines = [] }) {
+    if (!interpretation && !narrativeLines.length) return null;
     return (
         <div className="rchart__verdict">
             <div className="rchart__verdict-head">
-                <span className="rchart__verdict-title">{interpretation.headline}</span>
-                <span className={`rchart__verdict-chip ${significant ? 'rchart__verdict-chip--sig' : 'rchart__verdict-chip--ns'}`}>
-                    {significant ? 'statistically significant' : 'not statistically significant'}
-                </span>
+                <span className="rchart__verdict-title">{interpretation?.headline ?? 'Result Summary'}</span>
                 {aiAssisted && <span className="rchart__verdict-chip rchart__verdict-chip--ai">AI estimate</span>}
             </div>
-            <div className="rchart__verdict-copy">{interpretation.takeaway}</div>
+            {interpretation?.takeaway ? <div className="rchart__verdict-copy">{interpretation.takeaway}</div> : null}
+            {narrativeLines.length ? (
+                <div className="rchart__verdict-explain">
+                    <div className="rchart__verdict-explain-title">Analysis</div>
+                    <ResultGrammar lines={narrativeLines} />
+                </div>
+            ) : null}
         </div>
     );
 }
@@ -227,6 +283,30 @@ function EvidenceSummaryCard({ title, subtitle, children }) {
     );
 }
 
+function SummaryChartFrame({ overlay = null, chartLabel = '', children }) {
+    return (
+        <div className="rchart__summary-frame">
+            {(chartLabel || overlay) ? (
+                <div className="rchart__summary-top">
+                    {chartLabel ? <span className="rchart__chart-kind">{chartLabel}</span> : <span />}
+                    {overlay ? <div className="rchart__summary-overlay">{overlay}</div> : null}
+                </div>
+            ) : null}
+            {children}
+        </div>
+    );
+}
+
+function ChartStatCallout({ title, value, tone = 'neutral', subtitle = '' }) {
+    return (
+        <div className={`rchart__chart-callout rchart__chart-callout--${tone}`}>
+            <span className="rchart__chart-callout-title">{title}</span>
+            <span className="rchart__chart-callout-value">{value}</span>
+            {subtitle ? <span className="rchart__chart-callout-subtitle">{subtitle}</span> : null}
+        </div>
+    );
+}
+
 function InferenceCard({ title = 'What this means', children }) {
     if (!children) return null;
     return (
@@ -237,6 +317,195 @@ function InferenceCard({ title = 'What this means', children }) {
     );
 }
 
+function ResultGrammar({ lines = [] }) {
+    const cleanLines = lines.filter(Boolean);
+    if (!cleanLines.length) return null;
+    return (
+        <div className="rchart__grammar">
+            {cleanLines.map((line, index) => (
+                <div key={index} className="rchart__grammar-line">
+                    <span className="rchart__grammar-index">{index + 1}.</span>
+                    <span className="rchart__grammar-copy">{line}</span>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function resolveNarrativeLines(narrative, fallbackLines = []) {
+    const aiLines = Array.isArray(narrative?.lines) ? narrative.lines.filter(Boolean) : [];
+    return aiLines.length ? aiLines : fallbackLines.filter(Boolean);
+}
+
+function getInsightTypeFromEvidenceKind(kind) {
+    switch (kind) {
+        case EVIDENCE_KINDS.TREND:
+            return 'relationship';
+        case EVIDENCE_KINDS.GROUP_COMPARISON:
+            return 'group_difference';
+        case EVIDENCE_KINDS.DISTRIBUTION_SHAPE:
+            return 'distribution_issue';
+        case EVIDENCE_KINDS.OUTLIER_SIGNAL:
+            return 'outlier_candidate';
+        default:
+            return 'relationship';
+    }
+}
+
+function buildChanceCopy({ pValue, aiAssisted, evidenceKind }) {
+    if (aiAssisted || !Number.isFinite(Number(pValue))) {
+        return 'AI-assisted result: no computed p-value is available for this chart.';
+    }
+
+    if (evidenceKind === EVIDENCE_KINDS.TREND) {
+        return `${formatPValueLabel(pValue)} — a relationship this strong would be rare if the two variables were unrelated.`;
+    }
+    if (evidenceKind === EVIDENCE_KINDS.GROUP_COMPARISON) {
+        return `${formatPValueLabel(pValue)} — a group gap this large would be rare if the group averages were really the same.`;
+    }
+    if (evidenceKind === EVIDENCE_KINDS.CONTINGENCY_DEVIATION) {
+        return `${formatPValueLabel(pValue)} — a category mismatch this large would be rare if the two variables were unrelated.`;
+    }
+    if (evidenceKind === EVIDENCE_KINDS.DISTRIBUTION_SHAPE) {
+        return `${formatPValueLabel(pValue)} — a shape difference this large would be rare if the distribution matched the reference shape.`;
+    }
+    return `${formatPValueLabel(pValue)} — this pattern would be rare under a simple chance-only explanation.`;
+}
+
+function formatChanceSentence({ pValue, template, aiAssisted = false }) {
+    if (aiAssisted || !Number.isFinite(Number(pValue))) {
+        return 'This result is AI-assisted, so there is no computed p-value to show here.';
+    }
+    return `${formatPValueLabel(pValue)} — ${template}`;
+}
+
+function buildTrendGrammar({ col1, col2, pValue, aiAssisted = false, scatterData = [] }) {
+    const metrics = getLinearFitMetrics(scatterData);
+    if (!metrics) return [];
+    const direction = metrics.slope >= 0 ? 'higher' : 'lower';
+    const slope = Math.abs(metrics.slope);
+    const low = Math.min(Math.abs(metrics.ciLow), Math.abs(metrics.ciHigh));
+    const high = Math.max(Math.abs(metrics.ciLow), Math.abs(metrics.ciHigh));
+    return [
+        `Each additional ${col1.name} unit is associated with about ${formatNumber(slope, 2)} ${col2.name} points ${direction}.`,
+        `The likely range is ${formatNumber(low, 2)} to ${formatNumber(high, 2)} ${col2.name} points ${direction} per ${col1.name} unit.`,
+        formatChanceSentence({
+            pValue,
+            aiAssisted,
+            template: `a relationship this strong would be rare if ${col1.name} and ${col2.name} were unrelated.`,
+        }),
+    ];
+}
+
+function buildPairwiseGrammar({ summary, evidence, pValue, aiAssisted = false }) {
+    if (!summary?.length || summary.length !== 2) return [];
+    const diff = Number(evidence?.details?.meanDifference);
+    const ci = evidence?.details?.meanDifferenceCi ?? [];
+    if (!Number.isFinite(diff) || ci.length !== 2) return [];
+    const first = summary[0];
+    const second = summary[1];
+    const higher = diff >= 0 ? first.name : second.name;
+    const lower = diff >= 0 ? second.name : first.name;
+    const low = Math.min(Math.abs(ci[0]), Math.abs(ci[1]));
+    const high = Math.max(Math.abs(ci[0]), Math.abs(ci[1]));
+    return [
+        `${higher} scores about ${formatNumber(Math.abs(diff), 2)} points higher than ${lower}.`,
+        `The likely gap is ${formatNumber(low, 2)} to ${formatNumber(high, 2)} points.`,
+        formatChanceSentence({
+            pValue,
+            aiAssisted,
+            template: `a gap this large would be rare if ${higher} and ${lower} really had the same average score.`,
+        }),
+    ];
+}
+
+function buildOverallGroupGrammar({ summary, evidence, pValue, aiAssisted = false }) {
+    const comparisons = (evidence?.details?.pairwiseComparisons?.length
+        ? evidence.details.pairwiseComparisons.map((pair) => ({
+            lower: pair.groupA,
+            higher: pair.groupB,
+            diff: Number(pair.meanDifference),
+            low: Number(pair.ciLow),
+            high: Number(pair.ciHigh),
+        }))
+        : getPairwiseComparisons(summary)
+    ).sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+    const strongest = comparisons[0];
+    if (!strongest) return [];
+    const low = Math.min(Math.abs(strongest.low), Math.abs(strongest.high));
+    const high = Math.max(Math.abs(strongest.low), Math.abs(strongest.high));
+    const effectLabel = evidence?.details?.effectSizeLabel ?? 'effect size';
+    const effectValue = evidence?.details?.effectSizeValue;
+    return [
+        `The clearest gap is ${strongest.higher} versus ${strongest.lower}: about ${formatNumber(Math.abs(strongest.diff), 2)} points.`,
+        Number.isFinite(Number(effectValue))
+            ? `${effectLabel} is ${formatNumber(effectValue, 3)}, and the strongest pair likely differs by ${formatNumber(low, 2)} to ${formatNumber(high, 2)} points.`
+            : `The strongest pair likely differs by ${formatNumber(low, 2)} to ${formatNumber(high, 2)} points.`,
+        formatChanceSentence({
+            pValue,
+            aiAssisted,
+            template: 'differences across groups this large would be rare if the group averages were really similar.',
+        }),
+    ];
+}
+
+function buildChiSquareGrammar({ contingency, resultEvidence, pValue, aiAssisted = false }) {
+    if (!contingency?.cells?.length) return [];
+    const strongest = [...contingency.cells].sort((a, b) => Math.abs(b.residual) - Math.abs(a.residual))[0];
+    const effectValue = resultEvidence?.details?.effectSizeValue;
+    const effectLabel = resultEvidence?.details?.effectSizeLabel ?? "Cramer's V";
+    return [
+        `${strongest.row} × ${strongest.col} differs most from expectation: observed ${formatNumber(strongest.observed, 0)} versus expected ${formatNumber(strongest.expected, 1)}.`,
+        Number.isFinite(Number(effectValue))
+            ? `${effectLabel} is ${formatNumber(effectValue, 3)}, which summarizes the overall association size.`
+            : 'The darker cells are the ones that depart most from the expected table pattern.',
+        formatChanceSentence({
+            pValue,
+            aiAssisted,
+            template: 'a mismatch this large would be unlikely if the two categorical variables were unrelated.',
+        }),
+    ];
+}
+
+function buildDistributionGrammar({ col, pValue, aiAssisted = false }) {
+    const summary = getNumericShapeSummary(col);
+    if (!summary) return [];
+    const skew = summary.rightTail - summary.leftTail;
+    const shapeLine = Math.abs(skew) < 0.5
+        ? 'The middle of the distribution is fairly balanced around the median.'
+        : skew > 0
+            ? 'The right tail stretches farther than the left, so the distribution leans right.'
+            : 'The left tail stretches farther than the right, so the distribution leans left.';
+    return [
+        shapeLine,
+        `The middle 50% of values runs from ${formatNumber(summary.q1, 2)} to ${formatNumber(summary.q3, 2)} around a median of ${formatNumber(summary.median, 2)}.`,
+        formatChanceSentence({
+            pValue,
+            aiAssisted,
+            template: 'a shape difference this large would be rare if the values followed the expected reference shape.',
+        }),
+    ];
+}
+
+function buildOutlierSummary({ col, aiAssisted = false }) {
+    const values = (col?.raw_values ?? []).map((value) => parseFloat(value)).filter((value) => !Number.isNaN(value));
+    const fence = getOutlierFence(col);
+    if (!values.length || !Number.isFinite(fence)) return [];
+    const flagged = values.filter((value) => value > fence);
+    if (!flagged.length) {
+        return [
+            `No values exceed the outlier fence of ${formatNumber(fence, 2)} in this sample.`,
+            aiAssisted
+                ? 'This result is AI-assisted, so treat it as a prompt to inspect the data rather than a computed outlier verdict.'
+                : 'The plot shows the middle 50% and the fence, but no points cross that cutoff.',
+        ];
+    }
+    return [
+        `${flagged.length} value${flagged.length === 1 ? '' : 's'} exceed${flagged.length === 1 ? 's' : ''} the outlier fence of ${formatNumber(fence, 2)}.`,
+        `The most extreme value is ${formatNumber(Math.max(...flagged), 2)}, which is ${formatNumber(Math.max(...flagged) - fence, 2)} units beyond the fence.`,
+    ];
+}
+
 function formatOneInN(pValue) {
     const p = Number(pValue);
     if (!Number.isFinite(p) || p <= 0) return 'fewer than 1 in 10,000';
@@ -244,6 +513,104 @@ function formatOneInN(pValue) {
     const n = Math.max(1, Math.round(1 / p));
     if (n > 10000) return 'fewer than 1 in 10,000';
     return `about 1 in ${n}`;
+}
+
+function getLinearFitMetrics(scatterData) {
+    if (!Array.isArray(scatterData) || scatterData.length < 3) return null;
+    const n = scatterData.length;
+    const meanX = scatterData.reduce((sum, point) => sum + point.x, 0) / n;
+    const meanY = scatterData.reduce((sum, point) => sum + point.y, 0) / n;
+    let sxx = 0;
+    let sxy = 0;
+    let syy = 0;
+    scatterData.forEach((point) => {
+        const dx = point.x - meanX;
+        const dy = point.y - meanY;
+        sxx += dx * dx;
+        sxy += dx * dy;
+        syy += dy * dy;
+    });
+    if (sxx <= 0) return null;
+    const slope = sxy / sxx;
+    const intercept = meanY - slope * meanX;
+    const r = sxy / Math.sqrt(Math.max(1e-8, sxx * syy));
+    const sse = scatterData.reduce((sum, point) => {
+        const fitted = intercept + slope * point.x;
+        return sum + (point.y - fitted) ** 2;
+    }, 0);
+    const df = n - 2;
+    if (df <= 0) return null;
+    const seSlope = Math.sqrt((sse / df) / sxx);
+    const tCrit = jStat.studentt.inv(1 - ALPHA / 2, df);
+    return {
+        slope,
+        intercept,
+        r,
+        ciLow: slope - tCrit * seSlope,
+        ciHigh: slope + tCrit * seSlope,
+    };
+}
+
+function seededShuffle(values, seed = 1) {
+    const arr = [...values];
+    let state = seed;
+    const nextRand = () => {
+        state = (state * 1664525 + 1013904223) % 4294967296;
+        return state / 4294967296;
+    };
+    for (let i = arr.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(nextRand() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
+function seededSampleWithReplacement(values, count, seed = 1) {
+    let state = seed;
+    const nextRand = () => {
+        state = (state * 1664525 + 1013904223) % 4294967296;
+        return state / 4294967296;
+    };
+    return Array.from({ length: count }, () => values[Math.floor(nextRand() * values.length)]);
+}
+
+function buildNullFanLines(scatterData, count = 24) {
+    if (!Array.isArray(scatterData) || scatterData.length < 4) return [];
+    const xs = scatterData.map((point) => point.x);
+    const ys = scatterData.map((point) => point.y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    return Array.from({ length: count }, (_, idx) => {
+        const permutedX = seededShuffle(xs, idx + 1);
+        const metrics = getLinearFitMetrics(permutedX.map((x, i) => ({ x, y: ys[i] })));
+        if (!metrics) return null;
+        return [
+            { x: minX, y: metrics.intercept + metrics.slope * minX },
+            { x: maxX, y: metrics.intercept + metrics.slope * maxX },
+        ];
+    }).filter(Boolean);
+}
+
+function buildObservedBand(scatterData) {
+    const metrics = getLinearFitMetrics(scatterData);
+    if (!metrics) return null;
+    const xs = scatterData.map((point) => point.x);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    return {
+        center: [
+            { x: minX, y: metrics.intercept + metrics.slope * minX },
+            { x: maxX, y: metrics.intercept + metrics.slope * maxX },
+        ],
+        low: [
+            { x: minX, y: metrics.intercept + metrics.ciLow * minX },
+            { x: maxX, y: metrics.intercept + metrics.ciLow * maxX },
+        ],
+        high: [
+            { x: minX, y: metrics.intercept + metrics.ciHigh * minX },
+            { x: maxX, y: metrics.intercept + metrics.ciHigh * maxX },
+        ],
+    };
 }
 
 function GroupMeansViz({ summary, significant }) {
@@ -290,46 +657,42 @@ function GroupMeansViz({ summary, significant }) {
 
 function PairwiseDifferenceViz({ evidence, significant }) {
     const ci = evidence?.details?.meanDifferenceCi;
-    const effect = evidence?.details?.meanDifference;
-    if (!Array.isArray(ci) || ci.length !== 2 || effect == null) return null;
+    const effect = Number(evidence?.details?.meanDifference);
+    if (!Array.isArray(ci) || ci.length !== 2 || !Number.isFinite(effect)) return null;
 
     const low = Number(ci[0]);
     const high = Number(ci[1]);
-    const diff = Number(effect);
-    const values = [low, high, diff, 0];
+    const values = [low, high, effect, 0];
     const min = Math.min(...values);
     const max = Math.max(...values);
-    const pad = Math.max(0.25, (max - min) * 0.15 || 1);
+    const pad = Math.max(0.2, (max - min) * 0.2 || 1);
     const domainMin = min - pad;
     const domainMax = max + pad;
-    const width = 300;
-    const height = 72;
-    const leftPad = 20;
-    const rightPad = 20;
-    const axisY = 42;
+    const width = 320;
+    const height = 92;
+    const leftPad = 18;
+    const rightPad = 18;
+    const axisY = 48;
     const plotWidth = width - leftPad - rightPad;
     const xFor = (value) => leftPad + ((value - domainMin) / Math.max(0.0001, domainMax - domainMin)) * plotWidth;
-    const color = significant ? SIG_COLOR : NOT_COLOR;
 
     return (
-        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="rchart__summary-svg">
-            <line x1={leftPad} x2={width - rightPad} y1={axisY} y2={axisY} className="rchart__gridline" />
-            <line x1={xFor(0)} x2={xFor(0)} y1={16} y2={58} className="rchart__zero-line" />
-            <line x1={xFor(low)} x2={xFor(high)} y1={axisY} y2={axisY} className="rchart__delta-line" />
-            <line x1={xFor(low)} x2={xFor(low)} y1={axisY - 8} y2={axisY + 8} className="rchart__delta-cap" />
-            <line x1={xFor(high)} x2={xFor(high)} y1={axisY - 8} y2={axisY + 8} className="rchart__delta-cap" />
-            <circle cx={xFor(diff)} cy={axisY} r="5" fill={color} />
-            <text x={xFor(0)} y={12} textAnchor="middle" className="rchart__axis-text">0 = no difference</text>
-            <text x={xFor(diff)} y={axisY - 14} textAnchor="middle" className="rchart__annotation-text">
-                estimated difference
-            </text>
-            <text x={(xFor(low) + xFor(high)) / 2} y={axisY + 18} textAnchor="middle" className="rchart__axis-text">
-                95% interval for the difference
-            </text>
-            <text x={xFor(domainMin)} y={66} textAnchor="start" className="rchart__axis-text">{formatNumber(domainMin, 1)}</text>
-            <text x={xFor(0)} y={66} textAnchor="middle" className="rchart__axis-text">0</text>
-            <text x={xFor(domainMax)} y={66} textAnchor="end" className="rchart__axis-text">{formatNumber(domainMax, 1)}</text>
-        </svg>
+        <SummaryChartFrame chartLabel="Confidence interval plot">
+            <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="rchart__summary-svg">
+                <line x1={leftPad} x2={width - rightPad} y1={axisY} y2={axisY} className="rchart__gridline" />
+                <line x1={xFor(0)} x2={xFor(0)} y1={14} y2={axisY + 16} className="rchart__zero-line" />
+                <line x1={xFor(low)} x2={xFor(high)} y1={axisY} y2={axisY} className="rchart__delta-line" />
+                <line x1={xFor(low)} x2={xFor(low)} y1={axisY - 8} y2={axisY + 8} className="rchart__delta-cap" />
+                <line x1={xFor(high)} x2={xFor(high)} y1={axisY - 8} y2={axisY + 8} className="rchart__delta-cap" />
+                <circle cx={xFor(effect)} cy={axisY} r="4.5" fill={significant ? SIG_COLOR : NOT_COLOR} />
+                <text x={xFor(effect)} y={16} textAnchor="middle" className="rchart__annotation-text">
+                    observed gap {formatNumber(effect, 2)}
+                </text>
+                <text x={xFor(0)} y={height - 8} textAnchor="middle" className="rchart__axis-text">0 = no gap</text>
+                <text x={xFor(low)} y={height - 8} textAnchor="middle" className="rchart__axis-text">{formatNumber(low, 2)}</text>
+                <text x={xFor(high)} y={height - 8} textAnchor="middle" className="rchart__axis-text">{formatNumber(high, 2)}</text>
+            </svg>
+        </SummaryChartFrame>
     );
 }
 
@@ -368,26 +731,26 @@ function PairwiseOverlapViz({ points, summary, significant }) {
     });
 
     const width = 300;
-    const height = 156;
+    const height = 132;
     const leftPad = 18;
     const rightPad = 18;
-    const topPad = 18;
+    const topPad = 12;
     const bottomPad = 26;
-    const midY = 76;
-    const halfHeight = 42;
+    const midY = 78;
+    const halfHeight = 26;
     const plotWidth = width - leftPad - rightPad;
     const xFor = (value) => leftPad + ((value - min) / Math.max(1e-6, max - min)) * plotWidth;
-    const colorA = 'rgba(99, 102, 241, 0.48)';
-    const colorB = 'rgba(16, 185, 129, 0.42)';
+    const colorA = 'rgba(99, 102, 241, 0.28)';
+    const colorB = 'rgba(16, 185, 129, 0.24)';
     const strokeA = 'rgba(99, 102, 241, 0.9)';
     const strokeB = significant ? 'rgba(16, 185, 129, 0.95)' : 'rgba(244, 63, 94, 0.92)';
-    const buildPath = (counts, direction) => {
+    const buildPath = (counts) => {
         const pts = counts.map((count, index) => {
             const center = bins[index].x0 + (bins[index].x1 - bins[index].x0) / 2;
             const offset = (count / Math.max(...counts, 1)) * halfHeight;
             return {
                 x: xFor(center),
-                y: midY + direction * offset,
+                y: midY - offset,
             };
         });
         const firstX = xFor(bins[0].x0);
@@ -402,32 +765,24 @@ function PairwiseOverlapViz({ points, summary, significant }) {
         <div className="rchart__overlapviz">
             <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="rchart__summary-svg">
                 <line x1={leftPad} x2={width - rightPad} y1={midY} y2={midY} className="rchart__gridline" />
-                <path d={buildPath(densities[0].counts, -1)} fill={colorA} stroke={strokeA} strokeWidth="1.5" />
-                <path d={buildPath(densities[1].counts, 1)} fill={colorB} stroke={strokeB} strokeWidth="1.5" />
+                <path d={buildPath(densities[0].counts)} fill={colorA} stroke={strokeA} strokeWidth="1.5" />
+                <path d={buildPath(densities[1].counts)} fill={colorB} stroke={strokeB} strokeWidth="1.5" />
                 {[groupA, groupB].map((group, index) => {
                     const meanX = xFor(group.mean);
                     return (
                         <g key={group.name}>
-                            <line x1={meanX} x2={meanX} y1={midY - (index === 0 ? halfHeight : 0)} y2={midY + (index === 1 ? halfHeight : 0)} className="rchart__mean-marker" />
-                            <text x={meanX} y={index === 0 ? 16 : 148} textAnchor="middle" className="rchart__annotation-text">
-                                {group.name} mean {formatNumber(group.mean, 2)}
-                            </text>
+                            <line x1={meanX} x2={meanX} y1={midY - halfHeight - 6} y2={midY + 4} className="rchart__mean-marker" />
                         </g>
                     );
                 })}
-                <text x={leftPad} y={midY - halfHeight - 4} textAnchor="start" className="rchart__axis-text">
-                    {groupA.name} density
-                </text>
-                <text x={leftPad} y={midY + halfHeight + 12} textAnchor="start" className="rchart__axis-text">
-                    {groupB.name} density
-                </text>
                 <text x={leftPad} y={height - 6} textAnchor="start" className="rchart__axis-text">{formatNumber(min, 0)}</text>
+                <text x={width / 2} y={height - 6} textAnchor="middle" className="rchart__axis-text">shared score axis</text>
                 <text x={width - rightPad} y={height - 6} textAnchor="end" className="rchart__axis-text">{formatNumber(max, 0)}</text>
             </svg>
             <div className="rchart__overlapviz-legend">
-                <span><span className="rchart__swatch rchart__swatch--a" />{groupA.name}</span>
-                <span><span className="rchart__swatch rchart__swatch--b" />{groupB.name}</span>
-                <span className="rchart__overlapviz-copy">the filled shapes share one value axis, so the overlapping area shows where both groups concentrate.</span>
+                <span><span className="rchart__swatch rchart__swatch--a" />{groupA.name} mean {formatNumber(groupA.mean, 2)}</span>
+                <span><span className="rchart__swatch rchart__swatch--b" />{groupB.name} mean {formatNumber(groupB.mean, 2)}</span>
+                <span className="rchart__overlapviz-copy">where the colors sit on top of each other, the two groups occupy the same score range.</span>
             </div>
         </div>
     );
@@ -513,29 +868,22 @@ function EffectSizeMeter({ label, value, kind = 'generic' }) {
     );
 }
 
-function PairwiseForestViz({ summary }) {
-    if (!summary?.length || summary.length < 3) return null;
-    const pairs = [];
-    for (let i = 0; i < summary.length; i += 1) {
-        for (let j = i + 1; j < summary.length; j += 1) {
-            const a = summary[i];
-            const b = summary[j];
-            const diff = b.mean - a.mean;
-            const se = Math.sqrt((a.std ** 2) / Math.max(1, a.count) + (b.std ** 2) / Math.max(1, b.count));
-            pairs.push({
-                label: `${b.name} - ${a.name}`,
-                diff,
-                low: diff - 1.96 * se,
-                high: diff + 1.96 * se,
-            });
-        }
-    }
-    const width = 340;
-    const height = 40 + pairs.length * 24;
-    const leftPad = 88;
-    const rightPad = 70;
-    const axisTop = 18;
-    const axisBottom = height - 16;
+function PairwiseForestViz({ pairwiseComparisons = [], numColName = 'value' }) {
+    if (!pairwiseComparisons?.length) return null;
+    const pairs = pairwiseComparisons.map((pair) => ({
+        label: `${pair.groupB} - ${pair.groupA}`,
+        diff: Number(pair.meanDifference),
+        low: Number(pair.ciLow),
+        high: Number(pair.ciHigh),
+        pValueBin: pair.pValueBin ?? formatPValueLabel(pair.adjustedPValue),
+        significant: !!pair.significant,
+    }));
+    const width = 300;
+    const height = 34 + pairs.length * 22;
+    const leftPad = 78;
+    const rightPad = 56;
+    const axisTop = 16;
+    const axisBottom = height - 20;
     const values = pairs.flatMap((pair) => [pair.low, pair.high, pair.diff, 0]);
     const min = Math.min(...values);
     const max = Math.max(...values);
@@ -544,27 +892,34 @@ function PairwiseForestViz({ summary }) {
     const domainMax = max + pad;
     const xFor = (value) => leftPad + ((value - domainMin) / Math.max(0.0001, domainMax - domainMin)) * (width - leftPad - rightPad);
     return (
-        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="rchart__summary-svg">
-            <line x1={xFor(0)} x2={xFor(0)} y1={axisTop - 4} y2={axisBottom} className="rchart__zero-line" />
-            {pairs.map((pair, index) => {
-                const y = axisTop + index * 24 + 10;
-                return (
-                    <g key={pair.label}>
-                        <text x={leftPad - 6} y={y + 3} textAnchor="end" className="rchart__axis-text">{pair.label}</text>
-                        <line x1={xFor(pair.low)} x2={xFor(pair.high)} y1={y} y2={y} className="rchart__delta-line" />
-                        <line x1={xFor(pair.low)} x2={xFor(pair.low)} y1={y - 5} y2={y + 5} className="rchart__delta-cap" />
-                        <line x1={xFor(pair.high)} x2={xFor(pair.high)} y1={y - 5} y2={y + 5} className="rchart__delta-cap" />
-                        <circle cx={xFor(pair.diff)} cy={y} r="3.8" fill={SIG_COLOR} />
-                        <text x={width - 4} y={y + 3} textAnchor="end" className="rchart__axis-text">
-                            {formatNumber(pair.diff, 2)} [{formatNumber(pair.low, 2)}, {formatNumber(pair.high, 2)}]
-                        </text>
-                    </g>
-                );
-            })}
-            <text x={xFor(domainMin)} y={height - 2} textAnchor="start" className="rchart__axis-text">{formatNumber(domainMin, 1)}</text>
-            <text x={xFor(0)} y={height - 2} textAnchor="middle" className="rchart__axis-text">0</text>
-            <text x={xFor(domainMax)} y={height - 2} textAnchor="end" className="rchart__axis-text">{formatNumber(domainMax, 1)}</text>
-        </svg>
+        <SummaryChartFrame chartLabel="Pairwise CI plot">
+            <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="rchart__summary-svg">
+                <line x1={xFor(0)} x2={xFor(0)} y1={axisTop - 4} y2={axisBottom} className="rchart__zero-line" />
+                {pairs.map((pair, index) => {
+                    const y = axisTop + index * 24 + 10;
+                    return (
+                        <g key={pair.label}>
+                            <text x={leftPad - 6} y={y + 3} textAnchor="end" className="rchart__axis-text">
+                                {pair.label.length > 16 ? `${pair.label.slice(0, 15)}…` : pair.label}
+                            </text>
+                            <line x1={xFor(pair.low)} x2={xFor(pair.high)} y1={y} y2={y} className="rchart__delta-line" opacity={pair.significant ? 1 : 0.7} />
+                            <line x1={xFor(pair.low)} x2={xFor(pair.low)} y1={y - 5} y2={y + 5} className="rchart__delta-cap" />
+                            <line x1={xFor(pair.high)} x2={xFor(pair.high)} y1={y - 5} y2={y + 5} className="rchart__delta-cap" />
+                            <circle cx={xFor(pair.diff)} cy={y} r="3.8" fill={pair.significant ? SIG_COLOR : NOT_COLOR} />
+                            <text x={width - 4} y={y + 3} textAnchor="end" className="rchart__axis-text">
+                                {pair.pValueBin}
+                            </text>
+                        </g>
+                    );
+                })}
+                <text x={xFor(domainMin)} y={height - 8} textAnchor="start" className="rchart__axis-text">{formatNumber(domainMin, 1)}</text>
+                <text x={xFor(0)} y={height - 8} textAnchor="middle" className="rchart__axis-text">0</text>
+                <text x={xFor(domainMax)} y={height - 8} textAnchor="end" className="rchart__axis-text">{formatNumber(domainMax, 1)}</text>
+                <text x={width / 2} y={height - 1} textAnchor="middle" className="rchart__axis-text">
+                    difference in {numColName}
+                </text>
+            </svg>
+        </SummaryChartFrame>
     );
 }
 
@@ -700,6 +1055,43 @@ function VariancePartitionViz({ stat }) {
     );
 }
 
+function SlopeReferenceViz({ scatterData, pValue, significant }) {
+    const metrics = getLinearFitMetrics(scatterData);
+    if (!metrics) return null;
+    const { slope, ciLow, ciHigh } = metrics;
+    const values = [ciLow, ciHigh, slope, 0];
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const pad = Math.max(0.02, (max - min) * 0.18 || 0.1);
+    const domainMin = min - pad;
+    const domainMax = max + pad;
+    const width = 300;
+    const height = 78;
+    const leftPad = 18;
+    const rightPad = 18;
+    const axisY = 42;
+    const plotWidth = width - leftPad - rightPad;
+    const xFor = (value) => leftPad + ((value - domainMin) / Math.max(0.0001, domainMax - domainMin)) * plotWidth;
+    const color = significant ? SIG_COLOR : NOT_COLOR;
+    return (
+        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="rchart__summary-svg">
+            <line x1={leftPad} x2={width - rightPad} y1={axisY} y2={axisY} className="rchart__gridline" />
+            <line x1={xFor(0)} x2={xFor(0)} y1={14} y2={60} className="rchart__zero-line" />
+            <line x1={xFor(ciLow)} x2={xFor(ciHigh)} y1={axisY} y2={axisY} className="rchart__delta-line" />
+            <line x1={xFor(ciLow)} x2={xFor(ciLow)} y1={axisY - 7} y2={axisY + 7} className="rchart__delta-cap" />
+            <line x1={xFor(ciHigh)} x2={xFor(ciHigh)} y1={axisY - 7} y2={axisY + 7} className="rchart__delta-cap" />
+            <circle cx={xFor(slope)} cy={axisY} r="4.5" fill={color} />
+            <text x={xFor(0)} y={11} textAnchor="middle" className="rchart__axis-text">0 = completely flat line</text>
+            <text x={xFor(slope)} y={axisY - 13} textAnchor="middle" className="rchart__annotation-text">
+                slope = {formatNumber(slope, 3)}
+            </text>
+            <text x={(xFor(ciLow) + xFor(ciHigh)) / 2} y={axisY + 17} textAnchor="middle" className="rchart__axis-text">
+                likely slope range: {formatNumber(ciLow, 3)} to {formatNumber(ciHigh, 3)}
+            </text>
+        </svg>
+    );
+}
+
 function seededNormalSeries(length, seed = 1) {
     let state = seed;
     const nextRand = () => {
@@ -745,6 +1137,190 @@ function QQPlotViz({ col, seed = null, compact = false }) {
             {qqPoints.map((point, index) => (
                 <circle key={index} cx={xFor(point.x)} cy={yFor(point.y)} r={compact ? 1.7 : 2.2} className="rchart__point" />
             ))}
+        </svg>
+    );
+}
+
+function OutlierStripViz({ col }) {
+    const values = (col?.raw_values ?? []).map((value) => parseFloat(value)).filter((value) => !Number.isNaN(value)).sort((a, b) => a - b);
+    if (values.length < 5) return null;
+    const summary = getNumericShapeSummary(col);
+    const fence = getOutlierFence(col);
+    if (!summary || !Number.isFinite(fence)) return null;
+    const min = summary.min;
+    const max = summary.max;
+    const width = 320;
+    const height = 118;
+    const leftPad = 18;
+    const rightPad = 18;
+    const axisY = 78;
+    const plotWidth = width - leftPad - rightPad;
+    const xFor = (value) => leftPad + ((value - min) / Math.max(0.0001, max - min || 1)) * plotWidth;
+    const flaggedCount = values.filter((value) => value > fence).length;
+
+    return (
+        <SummaryChartFrame>
+            <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="rchart__summary-svg">
+                <line x1={leftPad} x2={width - rightPad} y1={axisY} y2={axisY} className="rchart__gridline" />
+                <rect
+                    x={xFor(summary.q1)}
+                    y={axisY - 12}
+                    width={Math.max(8, xFor(summary.q3) - xFor(summary.q1))}
+                    height={24}
+                    rx={8}
+                    className="rchart__iqr-box"
+                />
+                <line x1={xFor(summary.median)} x2={xFor(summary.median)} y1={axisY - 12} y2={axisY + 12} className="rchart__median-line" />
+                <line x1={xFor(fence)} x2={xFor(fence)} y1={18} y2={axisY + 10} className="rchart__zero-line" />
+                {values.map((value, index) => {
+                    const flagged = value > fence;
+                    const x = xFor(value);
+                    if (flagged) {
+                        const y = axisY - 20 - (index % 3) * 8;
+                        return <circle key={`${value}-${index}`} cx={x} cy={y} r="3.2" fill="rgba(239,68,68,0.82)" />;
+                    }
+                    return <line key={`${value}-${index}`} x1={x} x2={x} y1={axisY - 5} y2={axisY + 5} stroke="rgba(148,163,184,0.42)" strokeWidth="1.1" />;
+                })}
+                <text x={leftPad} y={height - 4} textAnchor="start" className="rchart__axis-text">{formatNumber(min, 0)}</text>
+                <text x={xFor(fence)} y={height - 4} textAnchor="middle" className="rchart__axis-text">fence {formatNumber(fence, 1)}</text>
+                <text x={width - rightPad} y={height - 4} textAnchor="end" className="rchart__axis-text">{formatNumber(max, 0)}</text>
+            </svg>
+            <div className="rchart__mini-legend">
+                <span><span className="rchart__swatch rchart__swatch--flagged" />{flaggedCount > 0 ? 'red points = beyond the outlier fence' : 'no points cross the outlier fence in this sample'}</span>
+                <span>purple box = middle 50% of values</span>
+            </div>
+        </SummaryChartFrame>
+    );
+}
+
+function QQReferenceViz({ col, pValue, significant, aiAssisted = false }) {
+    const raw = (col?.raw_values ?? []).map((value) => parseFloat(value)).filter((value) => !Number.isNaN(value));
+    if (raw.length < 5) return null;
+    const values = [...raw].sort((a, b) => a - b);
+    const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+    const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / Math.max(1, values.length - 1);
+    const sd = Math.sqrt(Math.max(variance, 1e-8));
+    const qqPoints = values.map((value, index) => {
+        const p = (index + 0.5) / values.length;
+        const theoretical = jStat.normal.inv(p, mean, sd);
+        return { x: theoretical, y: value };
+    });
+    const mins = qqPoints.flatMap((point) => [point.x, point.y]);
+    const min = Math.min(...mins);
+    const max = Math.max(...mins);
+    const width = 300;
+    const height = 132;
+    const pad = 22;
+    const xFor = (value) => pad + ((value - min) / Math.max(0.0001, max - min)) * (width - pad * 2);
+    const yFor = (value) => height - pad - ((value - min) / Math.max(0.0001, max - min)) * (height - pad * 2);
+    const hasPValue = Number.isFinite(Number(pValue)) && !aiAssisted;
+    return (
+        <SummaryChartFrame
+            chartLabel="Q-Q plot"
+            overlay={(
+                <div className="rchart__chart-callouts">
+                    <ChartStatCallout
+                        title="Normality check"
+                        value={hasPValue ? formatPValueLabel(pValue) : 'AI estimate'}
+                        tone={significant ? 'sig' : 'ns'}
+                        subtitle={hasPValue ? 'points that bend far from the dashed line support a small p-value' : 'no computed p-value for this Q-Q comparison'}
+                    />
+                </div>
+            )}
+        >
+        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="rchart__summary-svg">
+            <line x1={xFor(min)} x2={xFor(max)} y1={yFor(min)} y2={yFor(max)} className="rchart__zero-line" />
+            {qqPoints.map((point, index) => (
+                <circle
+                    key={index}
+                    cx={xFor(point.x)}
+                    cy={yFor(point.y)}
+                    r="2.4"
+                    fill={significant ? 'rgba(16,185,129,0.55)' : 'rgba(244,63,94,0.48)'}
+                />
+            ))}
+            <text x={pad} y={height - 6} textAnchor="start" className="rchart__axis-text">expected quantiles if the shape were normal</text>
+            <text x={width - pad} y={height - 6} textAnchor="end" className="rchart__axis-text">observed quantiles from your data</text>
+        </svg>
+        <div className="rchart__mini-legend">
+            <span><span className="rchart__swatch rchart__swatch--tail" />dashed line = where the points would sit if the distribution were close to normal</span>
+            <span><span className="rchart__swatch rchart__swatch--observed" />points = the ordered values from your data</span>
+            <span>{significant ? 'Clear bends away from the dashed line support a low p-value.' : 'Points that mostly stay near the line support a higher p-value.'}</span>
+        </div>
+        </SummaryChartFrame>
+    );
+}
+
+function ChiSquareReferenceViz({ contingency, pValue, significant }) {
+    if (!contingency?.cells?.length) return null;
+    const cells = contingency.cells;
+    const observedDeviation = cells.reduce((sum, cell) => sum + ((cell.observed - cell.expected) ** 2) / Math.max(cell.expected, 1e-8), 0);
+    const maxCell = cells.reduce((best, cell) => {
+        const contribution = ((cell.observed - cell.expected) ** 2) / Math.max(cell.expected, 1e-8);
+        return contribution > best.contribution ? { ...cell, contribution } : best;
+    }, { contribution: -Infinity });
+    const width = 300;
+    const height = 82;
+    const leftPad = 18;
+    const rightPad = 18;
+    const axisY = 52;
+    const maxX = Math.max(1, observedDeviation * 1.1);
+    const xFor = (value) => leftPad + (value / maxX) * (width - leftPad - rightPad);
+
+    return (
+        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="rchart__summary-svg">
+            <line x1={leftPad} x2={width - rightPad} y1={axisY} y2={axisY} className="rchart__gridline" />
+            <line x1={xFor(0)} x2={xFor(0)} y1={18} y2={axisY + 2} className="rchart__zero-line" />
+            <line x1={xFor(observedDeviation)} x2={xFor(observedDeviation)} y1={18} y2={axisY + 2} className="rchart__delta-line" />
+            <text x={xFor(0)} y={14} textAnchor="start" className="rchart__axis-text">0 = exactly what independence predicts</text>
+            <text x={xFor(observedDeviation)} y={14} textAnchor="end" className="rchart__annotation-text">
+                mismatch = {formatNumber(observedDeviation, 2)}
+            </text>
+            <text x={width - rightPad} y={28} textAnchor="end" className="rchart__annotation-text">
+                {formatPValueLabel(pValue)}
+            </text>
+            <text x={width - rightPad} y={40} textAnchor="end" className="rchart__axis-text">
+                {significant ? 'because the whole table departs from independence' : 'because the whole table is still close to independence'}
+            </text>
+            <text x={leftPad} y={height - 8} textAnchor="start" className="rchart__axis-text">
+                biggest push: {maxCell.row} × {maxCell.col}
+            </text>
+        </svg>
+    );
+}
+
+function OutlierReferenceViz({ col, pValue, significant }) {
+    const raw = (col?.raw_values ?? []).map((value) => parseFloat(value)).filter((value) => !Number.isNaN(value));
+    const fence = getOutlierFence(col);
+    if (!raw.length || !Number.isFinite(fence)) return null;
+    const beyond = raw.filter((value) => value > fence).sort((a, b) => a - b);
+    const maxDistance = Math.max(...beyond.map((value) => value - fence), 0);
+    const width = 300;
+    const height = 90;
+    const leftPad = 18;
+    const rightPad = 18;
+    const axisY = 56;
+    const plotWidth = width - leftPad - rightPad;
+    const xFor = (value) => leftPad + (value / Math.max(0.0001, maxDistance || 1)) * plotWidth;
+
+    return (
+        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="rchart__summary-svg">
+            <line x1={leftPad} x2={width - rightPad} y1={axisY} y2={axisY} className="rchart__gridline" />
+            <text x={leftPad} y={14} textAnchor="start" className="rchart__axis-text">0 = exactly at the outlier fence</text>
+            {beyond.map((value, index) => {
+                const distance = value - fence;
+                const x = xFor(distance);
+                return <circle key={`${value}-${index}`} cx={x} cy={axisY - (index % 3) * 10 - 6} r="3.6" fill={significant ? SIG_COLOR : NOT_COLOR} />;
+            })}
+            <text x={width - rightPad} y={14} textAnchor="end" className="rchart__annotation-text">
+                {formatPValueLabel(pValue)}
+            </text>
+            <text x={width - rightPad} y={26} textAnchor="end" className="rchart__axis-text">
+                {significant ? 'because several values sit clearly beyond the fence' : 'because the values do not stretch far enough beyond the fence'}
+            </text>
+            <text x={leftPad} y={height - 8} textAnchor="start" className="rchart__axis-text">
+                {beyond.length} values beyond fence {formatNumber(fence, 2)}
+            </text>
         </svg>
     );
 }
@@ -836,6 +1412,125 @@ function NullDistributionViz({ kind = 'symmetric', observed = 0, pValue, sampleS
             <div className="rchart__null-copy">
                 If {nullSubject}, most results would land under the wide middle of the curve. The shaded tail shows results as extreme as yours. {formatPValueLabel(pValue)} means only that small a share of same-under-null results would reach the shaded area.
             </div>
+        </div>
+    );
+}
+
+function StatisticTailPlot({
+    distribution,
+    observed,
+    df1 = null,
+    df2 = null,
+    pValue,
+    title = 'P-value plot',
+}) {
+    const obs = Number(observed);
+    if (!Number.isFinite(obs)) return null;
+
+    let minX = -4;
+    let maxX = 4;
+    let pdf = null;
+    let twoSided = false;
+    let zeroLabel = '0 = no effect';
+
+    if (distribution === 'student_t') {
+        const df = Number(df1);
+        if (!Number.isFinite(df) || df <= 0) return null;
+        const limit = Math.max(4, Math.abs(obs) * 1.2);
+        minX = -limit;
+        maxX = limit;
+        twoSided = true;
+        zeroLabel = '0 = no effect';
+        pdf = (x) => jStat.studentt.pdf(x, df);
+    } else if (distribution === 'f') {
+        const a = Number(df1);
+        const b = Number(df2);
+        if (!Number.isFinite(a) || !Number.isFinite(b) || a <= 0 || b <= 0) return null;
+        minX = 0;
+        maxX = Math.max(5, obs * 1.15);
+        zeroLabel = 'small F = groups look similar';
+        pdf = (x) => (x <= 0 ? 0 : jStat.centralF.pdf(x, a, b));
+    } else if (distribution === 'chisquare') {
+        const df = Number(df1);
+        if (!Number.isFinite(df) || df <= 0) return null;
+        minX = 0;
+        maxX = Math.max(6, obs * 1.15);
+        zeroLabel = 'small χ² = close to independence';
+        pdf = (x) => (x <= 0 ? 0 : jStat.chisquare.pdf(x, df));
+    } else {
+        return null;
+    }
+
+    const width = 300;
+    const height = 96;
+    const leftPad = 18;
+    const rightPad = 18;
+    const axisY = 68;
+    const plotWidth = width - leftPad - rightPad;
+    const sampleCount = 160;
+    const step = (maxX - minX) / (sampleCount - 1);
+    const points = Array.from({ length: sampleCount }, (_, i) => {
+        const x = minX + i * step;
+        return { x, y: pdf(x) || 0 };
+    });
+    const maxY = Math.max(...points.map((point) => point.y), 1e-6);
+    const xFor = (value) => leftPad + ((value - minX) / Math.max(1e-6, maxX - minX)) * plotWidth;
+    const yFor = (value) => axisY - (value / maxY) * 42;
+    const inTail = (x) => {
+        if (twoSided) return Math.abs(x) >= Math.abs(obs);
+        return x >= obs;
+    };
+    const tailPoints = points.filter((point) => inTail(point.x));
+    const tailPath = tailPoints.length
+        ? [
+            `M ${xFor(tailPoints[0].x)} ${axisY}`,
+            ...tailPoints.map((point) => `L ${xFor(point.x)} ${yFor(point.y)}`),
+            `L ${xFor(tailPoints[tailPoints.length - 1].x)} ${axisY}`,
+        ].join(' ')
+        : null;
+    const leftTailPoints = twoSided ? points.filter((point) => point.x <= -Math.abs(obs)) : [];
+    const leftTailPath = leftTailPoints.length
+        ? [
+            `M ${xFor(leftTailPoints[0].x)} ${axisY}`,
+            ...leftTailPoints.map((point) => `L ${xFor(point.x)} ${yFor(point.y)}`),
+            `L ${xFor(leftTailPoints[leftTailPoints.length - 1].x)} ${axisY}`,
+        ].join(' ')
+        : null;
+
+    return (
+        <div className="rchart__null">
+            <div className="rchart__null-title">{title}</div>
+            <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="rchart__summary-svg">
+                {leftTailPath ? <path d={leftTailPath} className="rchart__null-tail" /> : null}
+                {tailPath ? <path d={tailPath} className="rchart__null-tail" /> : null}
+                <path
+                    d={points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${xFor(point.x)} ${yFor(point.y)}`).join(' ')}
+                    fill="none"
+                    stroke="rgba(99,102,241,0.75)"
+                    strokeWidth="2"
+                />
+                <line x1={leftPad} x2={width - rightPad} y1={axisY} y2={axisY} className="rchart__gridline" />
+                {twoSided ? (
+                    <>
+                        <line x1={xFor(-Math.abs(obs))} x2={xFor(-Math.abs(obs))} y1={18} y2={axisY} className="rchart__delta-line" />
+                        <line x1={xFor(Math.abs(obs))} x2={xFor(Math.abs(obs))} y1={18} y2={axisY} className="rchart__delta-line" />
+                    </>
+                ) : (
+                    <line x1={xFor(obs)} x2={xFor(obs)} y1={18} y2={axisY} className="rchart__delta-line" />
+                )}
+                <text x={width - rightPad} y={14} textAnchor="end" className="rchart__annotation-text">
+                    {formatPValueLabel(pValue)}
+                </text>
+                <text x={width - rightPad} y={26} textAnchor="end" className="rchart__axis-text">
+                    shaded tail area = p-value
+                </text>
+                <text x={leftPad} y={height - 6} textAnchor="start" className="rchart__axis-text">
+                    {zeroLabel}
+                </text>
+                <text x={width - rightPad} y={height - 6} textAnchor="end" className="rchart__axis-text">
+                    observed statistic = {formatNumber(obs, 3)}
+                </text>
+            </svg>
         </div>
     );
 }
@@ -998,67 +1693,243 @@ function TrendSummary({ stat, significant }) {
     );
 }
 
-function ScatterResultViz({ col1, col2, significant, stat, mode = 'raw' }) {
-    const scatterData = getScatterData(col1, col2);
-    const linePoints = mode === 'statistical' ? getRegressionLine(scatterData) : null;
-    const lineColor = significant ? SIG_COLOR : NOT_COLOR;
-    if (!scatterData.length) return null;
+function CorrelationIntegratedViz({ scatterData, significant, pValue, xName, yName, aiAssisted = false }) {
+    const observedBand = buildObservedBand(scatterData);
+    if (!observedBand) return null;
+    const xs = scatterData.map((point) => point.x);
+    const ys = scatterData.map((point) => point.y);
+    const xMin = Math.min(...xs);
+    const xMax = Math.max(...xs);
+    const yMin = Math.min(...ys);
+    const yMax = Math.max(...ys);
+    const width = 360;
+    const height = 220;
+    const leftPad = 34;
+    const rightPad = 16;
+    const topPad = 16;
+    const bottomPad = 28;
+    const plotWidth = width - leftPad - rightPad;
+    const plotHeight = height - topPad - bottomPad;
+    const xFor = (value) => leftPad + ((value - xMin) / Math.max(1e-6, xMax - xMin)) * plotWidth;
+    const yFor = (value) => topPad + plotHeight - ((value - yMin) / Math.max(1e-6, yMax - yMin)) * plotHeight;
+    const linePath = (points) => points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${xFor(point.x)} ${yFor(point.y)}`).join(' ');
+    const bandPath = [
+        ...observedBand.high.map((point, index) => `${index === 0 ? 'M' : 'L'} ${xFor(point.x)} ${yFor(point.y)}`),
+        ...[...observedBand.low].reverse().map((point) => `L ${xFor(point.x)} ${yFor(point.y)}`),
+        'Z',
+    ].join(' ');
 
+    const hasPValue = Number.isFinite(Number(pValue)) && !aiAssisted;
     return (
-        <div className="rchart__panel">
-            <div className="rchart__panel-copy">
-                <span className="rchart__panel-title">{mode === 'statistical' ? 'Statistical Evidence' : 'Raw Data View'}</span>
-                <span className="rchart__panel-subtitle">
-                    {mode === 'statistical'
-                        ? 'The fitted line and its consistency explain what the test is reacting to.'
-                        : 'This view shows the raw point cloud only, so you can judge the relationship without the test overlay.'}
-                </span>
+        <div className="rchart__integrated-chart">
+            <div className="rchart__chart-callouts">
+                <ChartStatCallout
+                    title="Correlation p-value"
+                    value={hasPValue ? formatPValueLabel(pValue) : 'AI estimate'}
+                    tone={significant ? 'sig' : 'ns'}
+                    subtitle={hasPValue
+                        ? (significant ? 'the green trend band still slopes after uncertainty is included' : 'the trend is weak once uncertainty is included')
+                        : 'no computed p-value for this fitted trend'}
+                />
             </div>
-            {mode === 'statistical' && (
-                <EvidenceSummaryCard
-                    title="Explained Variance"
-                    subtitle="This shows how much of the variation in the outcome is accounted for by the relationship rather than left unexplained."
-                >
-                    <VariancePartitionViz stat={stat} />
-                </EvidenceSummaryCard>
-            )}
-            <ResponsiveContainer width="100%" height={156}>
-                <ScatterChart margin={MARGIN}>
-                    <XAxis dataKey="x" type="number" tick={TICK} tickCount={4} name={col1.name} />
-                    <YAxis dataKey="y" type="number" tick={TICK} tickCount={4} name={col2.name} />
-                    <Tooltip
-                        contentStyle={{ fontSize: 10, padding: '4px 8px' }}
-                        formatter={(v) => formatNumber(v, 3)}
-                        labelFormatter={() => ''}
-                        cursor={{ strokeDasharray: '3 3' }}
-                    />
-                    <Scatter data={scatterData} fill="#94a3b8" opacity={mode === 'statistical' ? 0.28 : 0.45} r={2.2} />
-                    {linePoints && (
-                        <Scatter
-                            data={linePoints}
-                            fill="none"
-                            line={{ stroke: lineColor, strokeWidth: 2.2 }}
-                            shape={() => null}
-                            isAnimationActive={false}
-                        />
-                    )}
-                </ScatterChart>
-            </ResponsiveContainer>
-            <div className="rchart__chart-note">
-                <span>{col1.name}</span>
-                <span className="ichart__vs">vs</span>
-                <span>{col2.name}</span>
-                {mode === 'statistical' && (
-                    <span className={`rchart__effect-pill ${significant ? 'rchart__effect-pill--sig' : 'rchart__effect-pill--ns'}`}>
-                        r = {formatNumber(stat, 3)}
-                    </span>
-                )}
+            <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="rchart__summary-svg">
+                <line x1={leftPad} x2={leftPad} y1={topPad} y2={height - bottomPad} className="rchart__gridline" />
+                <line x1={leftPad} x2={width - rightPad} y1={height - bottomPad} y2={height - bottomPad} className="rchart__gridline" />
+                <path d={bandPath} fill="rgba(16,185,129,0.14)" stroke="none" />
+                {scatterData.map((point, index) => (
+                    <circle key={index} cx={xFor(point.x)} cy={yFor(point.y)} r="3.2" fill="rgba(148,163,184,0.45)" />
+                ))}
+                <path d={linePath(observedBand.center)} fill="none" stroke={significant ? SIG_COLOR : NOT_COLOR} strokeWidth="2.4" />
+                <text x={width - rightPad} y={topPad + 10} textAnchor="end" className="rchart__annotation-text">
+                    fitted trend line
+                </text>
+                <text x={width / 2} y={height - 6} textAnchor="middle" className="rchart__axis-text">{xName}</text>
+                <text x={10} y={topPad + 12} textAnchor="start" className="rchart__axis-text">{yName}</text>
+                <text x={leftPad} y={height - 8} textAnchor="start" className="rchart__axis-text">{formatNumber(xMin, 0)}</text>
+                <text x={width - rightPad} y={height - 8} textAnchor="end" className="rchart__axis-text">{formatNumber(xMax, 0)}</text>
+                <text x={12} y={topPad + 8} textAnchor="start" className="rchart__axis-text">{formatNumber(yMax, 0)}</text>
+                <text x={12} y={height - bottomPad + 4} textAnchor="start" className="rchart__axis-text">{formatNumber(yMin, 0)}</text>
+            </svg>
+            <div className="rchart__mini-legend">
+                <span><span className="rchart__swatch rchart__swatch--observed" />colored line = fitted trend through the data</span>
+                <span><span className="rchart__swatch rchart__swatch--tail" />green band = uncertainty around that fitted trend</span>
+                <span><span className="rchart__swatch rchart__swatch--null" />gray points = the observed data</span>
             </div>
         </div>
     );
 }
 
-function GroupDifferenceViz({ catCol, numCol, significant, pValue, evidence, mode = 'raw' }) {
+function OutlierSeverityViz({ col, pValue, significant, aiAssisted = false }) {
+    const values = (col?.raw_values ?? []).map((value) => parseFloat(value)).filter((value) => !Number.isNaN(value)).sort((a, b) => a - b);
+    if (values.length < 5) return null;
+    const summary = getNumericShapeSummary(col);
+    if (!summary) return null;
+    const iqr = summary.q3 - summary.q1;
+    const lowerFence = summary.q1 - 1.5 * iqr;
+    const upperFence = summary.q3 + 1.5 * iqr;
+    const lowOutliers = values.filter((value) => value < lowerFence);
+    const highOutliers = values.filter((value) => value > upperFence);
+    const allOutliers = [...lowOutliers, ...highOutliers];
+    const suspectPoint = allOutliers.length
+        ? allOutliers.reduce((best, value) => (
+            Math.abs(value - summary.median) > Math.abs(best - summary.median) ? value : best
+        ), allOutliers[0])
+        : null;
+    const displayedOrdinary = values
+        .filter((value) => value !== suspectPoint)
+        .filter((_, index, arr) => {
+            if (arr.length <= 18) return true;
+            const stride = (arr.length - 1) / 17;
+            const nearest = Math.round(index / stride) * stride;
+            return Math.abs(index - nearest) < 0.5;
+        });
+    const nonOutlierValues = values.filter((value) => value >= lowerFence && value <= upperFence);
+    const whiskerLow = nonOutlierValues.length ? Math.min(...nonOutlierValues) : summary.min;
+    const whiskerHigh = nonOutlierValues.length ? Math.max(...nonOutlierValues) : summary.max;
+    const min = Math.min(summary.min, Number.isFinite(lowerFence) ? lowerFence : summary.min);
+    const max = Math.max(summary.max, Number.isFinite(upperFence) ? upperFence : summary.max);
+    const width = 280;
+    const height = 120;
+    const leftPad = 18;
+    const rightPad = 18;
+    const axisY = 74;
+    const plotWidth = width - leftPad - rightPad;
+    const xFor = (value) => leftPad + ((value - min) / Math.max(0.0001, max - min)) * plotWidth;
+    const hasPValue = Number.isFinite(Number(pValue)) && !aiAssisted;
+
+    return (
+        <SummaryChartFrame
+            chartLabel="Box-and-strip plot"
+            overlay={(
+                <div className="rchart__chart-callouts">
+                    <ChartStatCallout
+                        title="Outlier p-value"
+                        value={hasPValue ? formatPValueLabel(pValue) : 'AI estimate'}
+                        tone={significant ? 'sig' : 'ns'}
+                        subtitle={hasPValue ? 'highlighted point is the suspected outlier' : 'no computed p-value for this outlier check'}
+                    />
+                </div>
+            )}
+        >
+        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="rchart__summary-svg">
+            <line x1={leftPad} x2={width - rightPad} y1={axisY} y2={axisY} className="rchart__gridline" />
+            <line x1={xFor(whiskerLow)} x2={xFor(summary.q1)} y1={axisY} y2={axisY} className="rchart__whisker" />
+            <line x1={xFor(summary.q3)} x2={xFor(whiskerHigh)} y1={axisY} y2={axisY} className="rchart__whisker" />
+            <line x1={xFor(whiskerLow)} x2={xFor(whiskerLow)} y1={axisY - 6} y2={axisY + 6} className="rchart__whisker" />
+            <line x1={xFor(whiskerHigh)} x2={xFor(whiskerHigh)} y1={axisY - 6} y2={axisY + 6} className="rchart__whisker" />
+            <rect
+                x={xFor(summary.q1)}
+                y={axisY - 12}
+                width={Math.max(8, xFor(summary.q3) - xFor(summary.q1))}
+                height={24}
+                rx={8}
+                className="rchart__iqr-box"
+            />
+            <line x1={xFor(summary.median)} x2={xFor(summary.median)} y1={axisY - 12} y2={axisY + 12} className="rchart__median-line" />
+            {displayedOrdinary.map((value, index) => (
+                <circle
+                    key={`ordinary-${value}-${index}`}
+                    cx={xFor(value)}
+                    cy={axisY - 20}
+                    r="2.1"
+                    fill="rgba(148,163,184,0.38)"
+                />
+            ))}
+            {suspectPoint != null ? (
+                <circle cx={xFor(suspectPoint)} cy={axisY - 22} r="3.6" fill="rgba(239,68,68,0.92)" />
+            ) : null}
+            <text x={leftPad} y={14} textAnchor="start" className="rchart__axis-text">{col?.name ?? 'value'}</text>
+            {suspectPoint != null ? (
+                <text x={xFor(suspectPoint)} y={18} textAnchor="middle" className="rchart__annotation-text">
+                    suspected outlier {formatNumber(suspectPoint, 1)}
+                </text>
+            ) : null}
+            <text x={xFor(whiskerLow)} y={height - 20} textAnchor="middle" className="rchart__axis-text">lower whisker</text>
+            <text x={xFor(whiskerHigh)} y={height - 20} textAnchor="middle" className="rchart__axis-text">upper whisker</text>
+            <text x={leftPad} y={height - 8} textAnchor="start" className="rchart__axis-text">{formatNumber(min, 0)}</text>
+            <text x={width - rightPad} y={height - 8} textAnchor="end" className="rchart__axis-text">{formatNumber(max, 0)}</text>
+            <text x={width / 2} y={height - 1} textAnchor="middle" className="rchart__axis-text">value axis</text>
+        </svg>
+        <div className="rchart__mini-legend">
+            <span><span className="rchart__swatch rchart__swatch--flagged" />red point = suspected outlier</span>
+            <span><span className="rchart__swatch rchart__swatch--a" />purple box = middle 50% of values</span>
+            <span>{suspectPoint != null ? 'gray points are a sample of the rest of the distribution; the red point is the most extreme value.' : 'No point sits beyond the whisker cutoffs, so this sample does not show a clear single-point outlier.'}</span>
+        </div>
+        </SummaryChartFrame>
+    );
+}
+
+function ScatterResultViz({ col1, col2, significant, stat, pValue, aiAssisted = false, mode = 'raw' }) {
+    const scatterData = getScatterData(col1, col2);
+    if (!scatterData.length) return null;
+
+    if (mode === 'statistical') {
+        return (
+            <div className="rchart__panel">
+                <div className="rchart__panel-copy">
+                    <span className="rchart__panel-title">Statistical Evidence</span>
+                    <span className="rchart__panel-subtitle">
+                        The fitted trend line and its green uncertainty band show both the relationship and how confidently it differs from a flat line.
+                    </span>
+                </div>
+                <EvidenceSummaryCard
+                    title="Observed Relationship"
+                    subtitle="If the green band still leans in one direction even after uncertainty is included, the relationship is easier to distinguish from chance."
+                >
+                    <CorrelationIntegratedViz
+                        scatterData={scatterData}
+                        significant={significant}
+                        pValue={pValue}
+                        xName={col1.name}
+                        yName={col2.name}
+                        aiAssisted={aiAssisted}
+                    />
+                </EvidenceSummaryCard>
+                <div className="rchart__chart-note">
+                    <span>{col1.name}</span>
+                    <span className="ichart__vs">vs</span>
+                    <span>{col2.name}</span>
+                    <span className={`rchart__effect-pill ${significant ? 'rchart__effect-pill--sig' : 'rchart__effect-pill--ns'}`}>
+                        r = {formatNumber(stat, 3)}
+                    </span>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="rchart__panel">
+            <div className="rchart__panel-copy">
+                <span className="rchart__panel-title">Raw Data View</span>
+                <span className="rchart__panel-subtitle">
+                    This view shows the raw point cloud only, so you can judge the relationship without the test overlay.
+                </span>
+            </div>
+            <SummaryChartFrame chartLabel="Scatter plot">
+                <ResponsiveContainer width="100%" height={156}>
+                    <ScatterChart margin={MARGIN}>
+                        <XAxis dataKey="x" type="number" tick={TICK} tickCount={4} name={col1.name} />
+                        <YAxis dataKey="y" type="number" tick={TICK} tickCount={4} name={col2.name} />
+                        <Tooltip
+                            contentStyle={{ fontSize: 10, padding: '4px 8px' }}
+                            formatter={(v) => formatNumber(v, 3)}
+                            labelFormatter={() => ''}
+                            cursor={{ strokeDasharray: '3 3' }}
+                        />
+                        <Scatter data={scatterData} fill="#94a3b8" opacity={0.45} r={2.2} />
+                    </ScatterChart>
+                </ResponsiveContainer>
+            </SummaryChartFrame>
+            <div className="rchart__chart-note">
+                <span>{col1.name}</span>
+                <span className="ichart__vs">vs</span>
+                <span>{col2.name}</span>
+            </div>
+        </div>
+    );
+}
+
+function GroupDifferenceViz({ catCol, numCol, significant, pValue, evidence, stat, aiAssisted = false, mode = 'raw' }) {
     const points = getGroupPointData(catCol, numCol);
     const summary = getGroupDistributionSummary(catCol, numCol);
     if (!points.length || summary.length < 2) return null;
@@ -1097,23 +1968,28 @@ function GroupDifferenceViz({ catCol, numCol, significant, pValue, evidence, mod
                     <span className="rchart__panel-title">Statistical Evidence</span>
                     <span className="rchart__panel-subtitle">
                         {isOverallScope
-                            ? 'Each row compares two group averages directly. The dot is the estimated gap; the line shows the likely range for that gap.'
-                            : 'The dot is the estimated difference between the two group means. The line shows the likely range for that difference.'}
+                            ? 'Each row shows one pairwise gap. The dot marks the estimated gap, and the line shows the likely range for that gap.'
+                            : 'The dot marks the estimated gap, and the line shows the likely range for that gap.'}
                     </span>
                 </div>
                 <EvidenceSummaryCard
                     title={isOverallScope ? 'Average Score Gaps Between Groups' : 'Difference Between Group Means'}
                     subtitle={isOverallScope
-                        ? 'Each row is one average-score gap. For example, "High - Low = 1.73" means the High group scores 1.73 points higher on average than the Low group.'
-                        : 'The green dot is the estimated difference. The green line is the 95% interval for that difference. The dashed zero line means “no difference.”'}
+                        ? 'Rows that stay entirely on one side of 0 indicate average-score gaps that are distinguishable from no difference.'
+                        : 'If the interval stays away from 0, the two groups differ in average score.'}
                 >
                     {isOverallScope
-                        ? <PairwiseForestViz summary={summary} />
+                        ? (
+                            <PairwiseForestViz
+                                summary={summary}
+                                pValue={pValue}
+                                significant={significant}
+                                effectSizeLabel={evidence?.details?.effectSizeLabel}
+                                effectSizeValue={evidence?.details?.effectSizeValue}
+                            />
+                        )
                         : <PairwiseDifferenceViz evidence={evidence} significant={significant} />}
                 </EvidenceSummaryCard>
-                <InferenceCard>
-                    {buildGroupLayer2Inference(summary, evidence)}
-                </InferenceCard>
                 <div className="rchart__stat-grid">
                     {summary.map((group) => (
                         <div key={group.name} className="rchart__stat-card">
@@ -1199,6 +2075,7 @@ function GroupDifferenceViz({ catCol, numCol, significant, pValue, evidence, mod
 function HistogramResultViz({ col, significant, markOutliers = false, mode = 'raw' }) {
     const data = getHistogramData(col);
     const fence = markOutliers ? getOutlierFence(col) : null;
+    const hasOutlierBins = fence != null && data.some((bin) => bin?.x0 >= fence);
     const color = significant ? SIG_COLOR : NOT_COLOR;
     if (!data.length) return null;
 
@@ -1275,142 +2152,412 @@ function HistogramResultViz({ col, significant, markOutliers = false, mode = 'ra
             </ResponsiveContainer>
             <div className="rchart__chart-note">
                 <span>{col.name}</span>
-                {markOutliers && <span className="ichart__outlier-note">red = beyond Q3+1.5×IQR</span>}
+                {markOutliers && hasOutlierBins ? <span className="ichart__outlier-note">red = beyond Q3+1.5×IQR</span> : null}
             </div>
         </div>
     );
 }
 
-function ChiSquareEvidenceViz({ col1, col2, significant, mode = 'raw', resultEvidence }) {
+function ChiSquareEvidenceViz({ col1, col2, significant, mode = 'raw', resultEvidence, aiAssisted = false, pValue = null }) {
     const contingency = getContingencyEvidence(col1, col2);
     if (!contingency) return null;
 
     const { rows, cols, cells } = contingency;
-    const CELL = 36;
-    const PAD_LEFT = 64;
-    const PAD_TOP = 30;
-    const width = PAD_LEFT + cols.length * CELL;
-    const height = PAD_TOP + rows.length * CELL + 8;
-    const maxResidual = Math.max(...cells.map((cell) => Math.abs(cell.residual)), 0.01);
-    const scale = (value) => Math.min(0.92, Math.abs(value) / maxResidual);
-
-    const cellColor = (residual) => (
-        residual >= 0
-            ? `rgba(16,185,129,${scale(residual).toFixed(2)})`
-            : `rgba(244,63,94,${scale(residual).toFixed(2)})`
-    );
-    const rawMax = Math.max(...cells.map((cell) => cell.observed), 1);
+    const hasPValue = Number.isFinite(Number(pValue)) && !aiAssisted;
+    const palette = ['#10b981', '#6366f1', '#0ea5e9', '#f59e0b', '#f43f5e', '#8b5cf6'];
+    const chartData = rows.map((rowName) => {
+        const row = { row: rowName };
+        cols.forEach((colName) => {
+            const cell = cells.find((entry) => entry.row === rowName && entry.col === colName);
+            row[colName] = cell?.observed ?? 0;
+        });
+        return row;
+    });
 
     return (
         <div className="rchart__panel">
             <div className="rchart__panel-copy">
-                <span className="rchart__panel-title">{mode === 'statistical' ? 'Statistical Evidence' : 'Raw Data View'}</span>
+                <span className="rchart__panel-title">Statistical Evidence</span>
                 <span className="rchart__panel-subtitle">
-                    {mode === 'statistical'
-                        ? 'The test reacts to cells that differ most from expectation, not just to the biggest raw counts.'
-                        : 'This view shows the observed counts only, so you can see the raw category mix before looking at deviations from expectation.'}
+                    Grouped bars show the observed counts for each category combination. Large pattern differences across these bars support a smaller p-value.
                 </span>
             </div>
-            {mode === 'statistical' && (
-                <EvidenceSummaryCard
-                    title="Strongest Deviations"
-                    subtitle="These category pairs contribute most to the test result."
-                >
-                    <ResidualRanking col1={col1} col2={col2} significant={significant} />
-                </EvidenceSummaryCard>
-            )}
-            {mode === 'statistical' && (
+            <SummaryChartFrame
+                chartLabel="Grouped bar chart"
+                overlay={(
+                    <div className="rchart__chart-callouts">
+                        <ChartStatCallout
+                            title="Chi-square p-value"
+                            value={hasPValue ? formatPValueLabel(pValue) : 'AI estimate'}
+                            tone={significant ? 'sig' : 'ns'}
+                            subtitle={hasPValue ? 'bigger mismatches across the grouped bars support a smaller p-value' : 'no computed p-value for this association check'}
+                        />
+                    </div>
+                )}
+            >
+                <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={chartData} margin={{ top: 12, right: 8, bottom: 26, left: 2 }} barCategoryGap="16%">
+                        <XAxis dataKey="row" tick={TICK} />
+                        <YAxis tick={TICK} label={{ value: 'Observed count', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 9 }} />
+                        <Tooltip
+                            contentStyle={{ fontSize: 10, padding: '4px 8px' }}
+                            formatter={(v, key) => [v, key]}
+                            labelFormatter={(label) => `${col1.name}: ${label}`}
+                        />
+                        <Legend wrapperStyle={{ fontSize: 9, color: '#64748b' }} />
+                        {cols.map((colName, index) => (
+                            <Bar
+                                key={colName}
+                                dataKey={colName}
+                                name={`${col2.name}: ${colName}`}
+                                fill={palette[index % palette.length]}
+                                radius={[3, 3, 0, 0]}
+                            />
+                        ))}
+                    </BarChart>
+                </ResponsiveContainer>
+            </SummaryChartFrame>
+            {resultEvidence?.details?.effectSizeValue != null && (
                 <EffectSizeMeter
                     label={resultEvidence?.details?.effectSizeLabel ?? "Cramer's V"}
                     value={resultEvidence?.details?.effectSizeValue}
                     kind="cramersV"
                 />
             )}
-            <div className="rchart__heatmap-wrap">
-                <svg
-                    viewBox={`0 0 ${width} ${height}`}
-                    preserveAspectRatio="xMidYMid meet"
-                    className="rchart__heatmap-svg"
-                >
-                    {cols.map((name, index) => (
-                        <text
-                            key={`col-${name}`}
-                            x={PAD_LEFT + index * CELL + CELL / 2}
-                            y={PAD_TOP - 8}
-                            textAnchor="middle"
-                            fontSize={8}
-                            fill="#94a3b8"
-                        >
-                            {name.length > 8 ? `${name.slice(0, 7)}…` : name}
-                        </text>
-                    ))}
-                    {rows.map((name, index) => (
-                        <text
-                            key={`row-${name}`}
-                            x={PAD_LEFT - 6}
-                            y={PAD_TOP + index * CELL + CELL / 2 + 3}
-                            textAnchor="end"
-                            fontSize={8}
-                            fill="#94a3b8"
-                        >
-                            {name.length > 11 ? `${name.slice(0, 10)}…` : name}
-                        </text>
-                    ))}
-                    {cells.map((cell) => {
-                        const x = PAD_LEFT + cols.indexOf(cell.col) * CELL;
-                        const y = PAD_TOP + rows.indexOf(cell.row) * CELL;
-                        return (
-                            <g key={`${cell.row}-${cell.col}`}>
-                                <rect
-                                    x={x}
-                                    y={y}
-                                    width={CELL - 2}
-                                    height={CELL - 2}
-                                    rx={4}
-                                    fill={mode === 'statistical'
-                                        ? cellColor(cell.residual)
-                                        : `rgba(99,102,241,${Math.max(0.12, cell.observed / rawMax).toFixed(2)})`}
-                                    stroke={mode === 'statistical' ? (significant ? SIG_COLOR : NOT_COLOR) : 'rgba(99,102,241,0.18)'}
-                                    strokeOpacity={mode === 'statistical' ? 0.12 : 1}
-                                />
-                                <text
-                                    x={x + CELL / 2 - 1}
-                                    y={y + CELL / 2 - 2}
-                                    textAnchor="middle"
-                                    fontSize={8}
-                                    fontWeight="700"
-                                    fill={mode === 'statistical'
-                                        ? (Math.abs(cell.residual) > maxResidual * 0.45 ? '#fff' : '#334155')
-                                        : (cell.observed / rawMax > 0.55 ? '#fff' : '#334155')}
-                                >
-                                    {cell.observed}
-                                </text>
-                                <text
-                                    x={x + CELL / 2 - 1}
-                                    y={y + CELL / 2 + 9}
-                                    textAnchor="middle"
-                                    fontSize={6.5}
-                                    fill={mode === 'statistical'
-                                        ? (Math.abs(cell.residual) > maxResidual * 0.45 ? 'rgba(255,255,255,0.85)' : '#64748b')
-                                        : (cell.observed / rawMax > 0.55 ? 'rgba(255,255,255,0.9)' : '#64748b')}
-                                >
-                                    {mode === 'statistical' ? `exp ${formatNumber(cell.expected, 1)}` : 'obs'}
-                                </text>
-                            </g>
-                        );
-                    })}
-                </svg>
+            <div className="rchart__mini-legend">
+                <span>Each group of bars is one {col1.name} category.</span>
+                <span>Different colored bars within a group are the observed counts for {col2.name}.</span>
+                <span>If the bar pattern changes a lot from one {col1.name} category to another, the p-value gets smaller.</span>
             </div>
             <div className="rchart__chart-note">
                 <span>{col1.name}</span>
                 <span className="ichart__vs">×</span>
                 <span>{col2.name}</span>
-                {mode === 'statistical' && (
-                    <span className={`rchart__effect-pill ${significant ? 'rchart__effect-pill--sig' : 'rchart__effect-pill--ns'}`}>
-                        larger residuals = stronger evidence
-                    </span>
-                )}
+                <span className={`rchart__effect-pill ${significant ? 'rchart__effect-pill--sig' : 'rchart__effect-pill--ns'}`}>
+                    observed counts by category
+                </span>
             </div>
+        </div>
+    );
+}
+
+// ── Group mean delta (CI vs zero) — the p-value visual for group comparison ───
+
+function GroupMeanDeltaViz({ summary, significant, pValue, numColName = 'value' }) {
+    if (!summary || summary.length !== 2) return null;
+    const [a, b] = summary;
+    const diff = b.mean - a.mean;
+    const se = Math.sqrt(
+        (a.std * a.std) / Math.max(1, a.count) +
+        (b.std * b.std) / Math.max(1, b.count)
+    );
+    const low = diff - 1.96 * se;
+    const high = diff + 1.96 * se;
+
+    const vals = [low, high, diff, 0];
+    const dMin = Math.min(...vals);
+    const dMax = Math.max(...vals);
+    const pad = Math.max(0.2, (dMax - dMin) * 0.2 || 1);
+    const domainMin = dMin - pad;
+    const domainMax = dMax + pad;
+    const width = 280;
+    const height = 90;
+    const leftPad = 18;
+    const rightPad = 18;
+    const axisY = 40;
+    const plotWidth = width - leftPad - rightPad;
+    const xFor = (v) => leftPad + ((v - domainMin) / Math.max(0.0001, domainMax - domainMin)) * plotWidth;
+    const color = significant ? SIG_COLOR : NOT_COLOR;
+    const ciCrossesZero = low <= 0 && high >= 0;
+
+    return (
+        <SummaryChartFrame
+            chartLabel="Confidence interval plot"
+            overlay={(
+                <div className="rchart__chart-callouts">
+                    {Number.isFinite(Number(pValue)) ? (
+                        <ChartStatCallout
+                            title="P-value"
+                            value={formatPValueLabel(pValue)}
+                            tone={significant ? 'sig' : 'ns'}
+                            subtitle={ciCrossesZero ? 'the interval still touches the no-gap line' : 'the interval stays away from the no-gap line'}
+                        />
+                    ) : null}
+                </div>
+            )}
+        >
+            <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="rchart__summary-svg">
+                <line x1={leftPad} x2={width - rightPad} y1={axisY} y2={axisY} className="rchart__gridline" />
+                <line x1={xFor(0)} x2={xFor(0)} y1={14} y2={axisY + 10} className="rchart__zero-line" />
+                <line x1={xFor(low)} x2={xFor(high)} y1={axisY} y2={axisY} className="rchart__delta-line" />
+                <line x1={xFor(low)} x2={xFor(low)} y1={axisY - 8} y2={axisY + 8} className="rchart__delta-cap" />
+                <line x1={xFor(high)} x2={xFor(high)} y1={axisY - 8} y2={axisY + 8} className="rchart__delta-cap" />
+                <circle cx={xFor(diff)} cy={axisY} r="4.5" fill={color} />
+                <text x={xFor(diff)} y={12} textAnchor="middle" className="rchart__annotation-text">
+                    average score gap = {formatNumber(diff, 2)}
+                </text>
+                <text x={leftPad} y={height - 9} textAnchor="start" className="rchart__axis-text">{formatNumber(domainMin, 1)}</text>
+                <text x={xFor(0)} y={height - 9} textAnchor="middle" className="rchart__axis-text">0 = no gap</text>
+                <text x={width - rightPad} y={height - 9} textAnchor="end" className="rchart__axis-text">{formatNumber(domainMax, 1)}</text>
+                <text x={width / 2} y={height - 1} textAnchor="middle" className="rchart__axis-text">
+                    difference in {numColName}
+                </text>
+            </svg>
+            <div className="rchart__mini-legend">
+                <span><span className="rchart__swatch rchart__swatch--observed" />green dot = observed difference between the two group averages</span>
+                <span><span className="rchart__swatch rchart__swatch--tail" />green line = 95% confidence interval ({formatNumber(low, 2)} to {formatNumber(high, 2)})</span>
+                <span>{ciCrossesZero ? 'Because the interval crosses 0, the difference is still uncertain.' : 'Because the interval stays away from 0, the difference is statistically reliable.'}</span>
+            </div>
+        </SummaryChartFrame>
+    );
+}
+
+// ── All-group CI forest plot — p-value visual for multi-group comparison ────────
+
+function GroupAllMeansCIViz({ summary, significant, pValue, numColName = 'value' }) {
+    if (!summary || summary.length < 2) return null;
+    const color = significant ? SIG_COLOR : NOT_COLOR;
+    const allVals = summary.flatMap((g) => [g.ciLow, g.ciHigh, g.mean]);
+    const dMin = Math.min(...allVals);
+    const dMax = Math.max(...allVals);
+    const rangePad = Math.max((dMax - dMin) * 0.15, 0.5);
+    const domainMin = dMin - rangePad;
+    const domainMax = dMax + rangePad;
+    const svgWidth = 300;
+    const rowH = 26;
+    const topPad = 22;
+    const bottomPad = 18;
+    const leftPad = 64;
+    const rightPad = 12;
+    const plotWidth = svgWidth - leftPad - rightPad;
+    const svgHeight = topPad + summary.length * rowH + bottomPad;
+    const xFor = (v) => leftPad + ((v - domainMin) / Math.max(0.0001, domainMax - domainMin)) * plotWidth;
+    const yFor = (i) => topPad + i * rowH + rowH / 2;
+
+    return (
+        <SummaryChartFrame
+            chartLabel="Group means interval plot"
+            overlay={(
+                <div className="rchart__chart-callouts">
+                    {Number.isFinite(Number(pValue)) ? (
+                        <ChartStatCallout
+                            title="Overall p-value"
+                            value={formatPValueLabel(pValue)}
+                            tone={significant ? 'sig' : 'ns'}
+                            subtitle={significant ? 'at least one group differs' : 'overall gap is not clear'}
+                        />
+                    ) : null}
+                </div>
+            )}
+        >
+        <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} preserveAspectRatio="xMidYMid meet" className="rchart__summary-svg">
+            {summary.map((g, i) => {
+                const y = yFor(i);
+                const gLabel = String(g.name).length > 9 ? `${String(g.name).slice(0, 8)}…` : String(g.name);
+                return (
+                    <g key={g.name}>
+                        <text x={leftPad - 6} y={y + 4} textAnchor="end" className="rchart__axis-text">{gLabel}</text>
+                        <line x1={xFor(g.ciLow)} x2={xFor(g.ciHigh)} y1={y} y2={y}
+                            stroke={color} strokeWidth={2} opacity={0.7} />
+                        <line x1={xFor(g.ciLow)} x2={xFor(g.ciLow)} y1={y - 5} y2={y + 5}
+                            stroke={color} strokeWidth={1.5} />
+                        <line x1={xFor(g.ciHigh)} x2={xFor(g.ciHigh)} y1={y - 5} y2={y + 5}
+                            stroke={color} strokeWidth={1.5} />
+                        <circle cx={xFor(g.mean)} cy={y} r={4} fill={color} />
+                        <text x={xFor(g.mean)} y={y - 7} textAnchor="middle" className="rchart__axis-text">
+                            {formatNumber(g.mean, 1)}
+                        </text>
+                    </g>
+                );
+            })}
+            <line
+                x1={leftPad} x2={svgWidth - rightPad}
+                y1={topPad + summary.length * rowH + 2}
+                y2={topPad + summary.length * rowH + 2}
+                className="rchart__gridline"
+            />
+            <text x={(leftPad + svgWidth - rightPad) / 2} y={svgHeight - 3} textAnchor="middle" className="rchart__axis-text">
+                95% CI for {numColName} in each group
+            </text>
+        </svg>
+        <div className="rchart__mini-legend">
+            <span><span className="rchart__swatch rchart__swatch--observed" />green dot = group average</span>
+            <span><span className="rchart__swatch rchart__swatch--tail" />green line = 95% confidence interval</span>
+            <span>If two groups sit clearly apart on this axis, the evidence for a real difference is stronger.</span>
+        </div>
+        </SummaryChartFrame>
+    );
+}
+
+// ── Group box / jitter plot with significance annotation ──────────────────────
+
+function GroupBoxJitterViz({ catCol, numCol, significant, pValue, aiAssisted, pairwiseComparisons = [] }) {
+    const summary = getGroupDistributionSummary(catCol, numCol);
+    const points = getGroupPointData(catCol, numCol, 32, 6);
+    if (!summary.length || !points.length) return null;
+
+    const color = significant ? SIG_COLOR : NOT_COLOR;
+    const width = Math.max(280, 80 + summary.length * 72);
+    const extraBracketRows = summary.length === 2 ? 1 : 0;
+    const bracketSpace = extraBracketRows ? 18 + extraBracketRows * 16 : 0;
+    const height = 210 + bracketSpace;
+    const leftPad = 42;
+    const rightPad = 18;
+    const topPad = 36 + bracketSpace;
+    const bottomPad = 52;
+    const plotWidth = width - leftPad - rightPad;
+    const plotHeight = height - topPad - bottomPad;
+    const yMin = Math.min(...summary.map((g) => g.min));
+    const yMax = Math.max(...summary.map((g) => g.max));
+    const yFor = (value) => topPad + plotHeight - ((value - yMin) / Math.max(1, yMax - yMin)) * plotHeight;
+    const compactWidth = Math.min(plotWidth, summary.length === 2 ? 150 : 210);
+    const compactStart = leftPad + (plotWidth - compactWidth) / 2;
+    const xForGroup = (index) => compactStart + compactWidth * (summary.length === 1 ? 0.5 : index / Math.max(1, summary.length - 1));
+    const boxWidth = Math.min(34, compactWidth / Math.max(2, summary.length * 1.9));
+    const ticks = Array.from({ length: 4 }, (_, i) => {
+        const value = yMin + ((yMax - yMin) * i) / 3;
+        return { value, y: yFor(value) };
+    });
+    const pairwiseOnly = summary.length === 2;
+    const hasPValue = Number.isFinite(Number(pValue)) && !aiAssisted;
+    const renderBracket = (startIndex, endIndex, y, label) => {
+        const x1 = xForGroup(startIndex);
+        const x2 = xForGroup(endIndex);
+        return (
+            <g key={`${startIndex}-${endIndex}-${label}`}>
+                <line x1={x1} x2={x1} y1={y} y2={y + 8} className="rchart__delta-line" />
+                <line x1={x2} x2={x2} y1={y} y2={y + 8} className="rchart__delta-line" />
+                <line x1={x1} x2={x2} y1={y} y2={y} className="rchart__delta-line" />
+                <text x={(x1 + x2) / 2} y={y - 4} textAnchor="middle" className="rchart__annotation-text">
+                    {label}
+                </text>
+            </g>
+        );
+    };
+
+    return (
+        <SummaryChartFrame
+            chartLabel="Box-and-jitter plot"
+            overlay={(
+                <div className="rchart__chart-callouts">
+                    <ChartStatCallout
+                        title={pairwiseOnly ? 'Welch p-value' : 'ANOVA p-value'}
+                        value={hasPValue ? formatPValueLabel(pValue) : 'AI estimate'}
+                        tone={significant ? 'sig' : 'ns'}
+                        subtitle={pairwiseOnly
+                            ? (hasPValue ? 'shown by the bracket over the two groups' : 'no computed p-value for this comparison')
+                            : (hasPValue ? 'overall difference across groups' : 'no computed p-value for this comparison')}
+                    />
+                </div>
+            )}
+        >
+            <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" className="rchart__summary-svg">
+                {ticks.map((tick) => (
+                    <g key={tick.y}>
+                        <line x1={leftPad} x2={width - rightPad} y1={tick.y} y2={tick.y} className="rchart__gridline" />
+                        <text x={leftPad - 6} y={tick.y + 3} textAnchor="end" className="rchart__axis-text">
+                            {formatNumber(tick.value, 1)}
+                        </text>
+                    </g>
+                ))}
+                <text x={12} y={topPad - 10} textAnchor="start" className="rchart__axis-text">{numCol.name}</text>
+                {summary.map((group, index) => {
+                    const x = xForGroup(index);
+                    const groupPoints = points.filter((point) => point.group === group.name);
+                    return (
+                        <g key={group.name}>
+                            <line x1={x} x2={x} y1={yFor(group.min)} y2={yFor(group.max)} className="rchart__whisker" />
+                            <rect
+                                x={x - boxWidth / 2}
+                                y={yFor(group.q3)}
+                                width={boxWidth}
+                                height={Math.max(8, yFor(group.q1) - yFor(group.q3))}
+                                rx={8}
+                                className="rchart__iqr-box"
+                            />
+                            <line x1={x - boxWidth / 2} x2={x + boxWidth / 2} y1={yFor(group.median)} y2={yFor(group.median)} className="rchart__median-line" />
+                            <line x1={x - 10} x2={x + 10} y1={yFor(group.min)} y2={yFor(group.min)} className="rchart__whisker" />
+                            <line x1={x - 10} x2={x + 10} y1={yFor(group.max)} y2={yFor(group.max)} className="rchart__whisker" />
+                            {groupPoints.map((point, idx) => (
+                                <circle
+                                    key={`${group.name}-${idx}`}
+                                    cx={x + point.jitterX * 16}
+                                    cy={yFor(point.value)}
+                                    r="2.1"
+                                    fill="rgba(148,163,184,0.52)"
+                                />
+                            ))}
+                            <circle cx={x} cy={yFor(group.mean)} r="4.2" fill={color} />
+                            <text x={x} y={yFor(group.mean) - 8} textAnchor="middle" className="rchart__annotation-text">
+                                {formatNumber(group.mean, 1)}
+                            </text>
+                            <text x={x} y={height - 18} textAnchor="middle" className="rchart__axis-text">{group.name}</text>
+                        </g>
+                    );
+                })}
+                {pairwiseOnly && (
+                    renderBracket(0, 1, topPad - 18, hasPValue ? formatPValueLabel(pValue) : 'AI estimate')
+                )}
+            </svg>
+            <div className="rchart__mini-legend">
+                <span><span className="rchart__swatch rchart__swatch--observed" />green dot = group average</span>
+                <span><span className="rchart__swatch rchart__swatch--a" />purple box = middle 50% of scores</span>
+                <span>{pairwiseOnly ? 'top bracket = the p-value for the group comparison' : 'pairwise p-values are listed in the comparison rows below this chart'}</span>
+                <span>gray dots = individual observations, jittered sideways so they do not overlap</span>
+            </div>
+        </SummaryChartFrame>
+    );
+}
+
+// ── Grouped bars with 95% CI + p-value strip ─────────────────────────────────
+
+function GroupedBarResultViz({ catCol, numCol, significant, pValue, aiAssisted, pairwiseComparisons = [] }) {
+    const summary = getGroupDistributionSummary(catCol, numCol);
+    if (!summary.length) return null;
+    const isPairwise = summary.length === 2;
+    const canShowPValueViz = shouldRenderInlinePValue({ pValue, aiAssisted });
+    const significantPairwise = pairwiseComparisons.filter((pair) => pair?.significant);
+
+    return (
+        <div className="rchart__integrated-chart">
+            <GroupBoxJitterViz
+                catCol={catCol}
+                numCol={numCol}
+                significant={significant}
+                pValue={pValue}
+                aiAssisted={aiAssisted}
+                pairwiseComparisons={pairwiseComparisons}
+            />
+            <div className="rchart__chart-note">
+                <span>{catCol.name}</span>
+                <span className="ichart__vs">→</span>
+                <span>{numCol.name}</span>
+            </div>
+            {canShowPValueViz && isPairwise && <GroupMeanDeltaViz summary={summary} significant={significant} pValue={pValue} numColName={numCol.name} />}
+            {canShowPValueViz && !isPairwise && significantPairwise.length > 0 && (
+                <EvidenceSummaryCard
+                    title="Pairwise mean differences"
+                    subtitle="Each row compares two groups directly. If the interval stays on one side of 0, that pair is statistically different."
+                >
+                    <PairwiseForestViz pairwiseComparisons={pairwiseComparisons} numColName={numCol.name} />
+                </EvidenceSummaryCard>
+            )}
+            {canShowPValueViz && !isPairwise && !significantPairwise.length && (
+                <div className="rchart__mini-legend">
+                    <span>{formatPValueLabel(pValue)} applies to the overall multi-group test.</span>
+                    <span>This box-and-jitter plot shows each group’s spread; none of the stored pairwise comparisons are strong enough to label individually.</span>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── Histogram + Q-Q reference cue — the p-value visual for distribution shape ─
+
+function HistogramWithReferenceCue({ col, pValue, significant, aiAssisted }) {
+    return (
+        <div className="rchart__integrated-chart">
+            <QQReferenceViz col={col} pValue={pValue} significant={significant} aiAssisted={aiAssisted} />
         </div>
     );
 }
@@ -1435,6 +2582,7 @@ function ResultChart({
     method = '',
     testType = '',
     evidence = null,
+    narrative = null,
 }) {
     if (!spec || !columns.length) return null;
 
@@ -1448,19 +2596,52 @@ function ResultChart({
         significant,
         method,
     });
-    const explanation = buildResultExplanation({
+    const baseInterpretation = buildResultInterpretation({
         evidence: resolvedEvidence,
         method,
         significant,
         aiAssisted,
     });
-    const interpretation = buildResultInterpretation({
+    const interpretation = buildVisualInterpretationOverride({
+        interpretation: baseInterpretation,
         evidence: resolvedEvidence,
-        method,
-        significant,
+        numeric,
         aiAssisted,
     });
-    const sampleSize = resolveSampleSize(resolvedEvidence, numeric, categorical);
+    const narrativeLinesByKind = (() => {
+        if (resolvedEvidence.kind === EVIDENCE_KINDS.TREND && numeric.length >= 2) {
+            return buildTrendGrammar({
+                col1: numeric[0],
+                col2: numeric[1],
+                pValue,
+                aiAssisted,
+                scatterData: getScatterData(numeric[0], numeric[1]),
+            });
+        }
+        if (resolvedEvidence.kind === EVIDENCE_KINDS.GROUP_COMPARISON && categorical[0] && numeric[0]) {
+            const summary = getGroupDistributionSummary(categorical[0], numeric[0]);
+            const isOverallScope = resolvedEvidence?.details?.scope === 'overall_multi_group' || summary.length > 2;
+            return isOverallScope
+                ? buildOverallGroupGrammar({ summary, evidence: resolvedEvidence, pValue, aiAssisted })
+                : buildPairwiseGrammar({ summary, evidence: resolvedEvidence, pValue, aiAssisted });
+        }
+        if (resolvedEvidence.kind === EVIDENCE_KINDS.CONTINGENCY_DEVIATION && categorical.length >= 2) {
+            return buildChiSquareGrammar({
+                contingency: getContingencyEvidence(categorical[0], categorical[1]),
+                resultEvidence: resolvedEvidence,
+                pValue,
+                aiAssisted,
+            });
+        }
+        if (resolvedEvidence.kind === EVIDENCE_KINDS.DISTRIBUTION_SHAPE && numeric[0]) {
+            return buildDistributionGrammar({ col: numeric[0], pValue, aiAssisted });
+        }
+        if (resolvedEvidence.kind === EVIDENCE_KINDS.OUTLIER_SIGNAL && numeric[0]) {
+            return buildOutlierSummary({ col: numeric[0], aiAssisted });
+        }
+        return [];
+    })();
+    const narrativeLines = resolveNarrativeLines(narrative, narrativeLinesByKind);
     const sigBadge = significant
         ? <span className="ichart__sig-badge ichart__sig-badge--yes">significant</span>
         : <span className="ichart__sig-badge ichart__sig-badge--no">not significant</span>;
@@ -1468,39 +2649,16 @@ function ResultChart({
         ? <span className="ichart__sig-badge ichart__sig-badge--ai">AI estimate</span>
         : null;
 
-    let layer1 = null;
-    let layer2 = null;
-    let layer3 = null;
+    let mainChart = null;
     let label = null;
+    const chanceCopy = buildChanceCopy({
+        pValue,
+        aiAssisted,
+        evidenceKind: resolvedEvidence.kind,
+    });
 
     if (resolvedEvidence.kind === EVIDENCE_KINDS.TREND && numeric.length >= 2) {
-        layer1 = (
-            <LayerBlock
-                label="Layer 1"
-                title="Evidence"
-                caption="What to look at: whether the point cloud leans in one direction before thinking about significance."
-            >
-                <ScatterResultViz col1={numeric[0]} col2={numeric[1]} significant={significant} stat={stat} mode="raw" />
-            </LayerBlock>
-        );
-        layer2 = (
-            <LayerBlock
-                label="Layer 2"
-                title="Effect"
-                caption="What we measured, and how sure: explained variance and the fitted relationship, shown in data units rather than a standalone badge."
-            >
-                <ScatterResultViz col1={numeric[0]} col2={numeric[1]} significant={significant} stat={stat} mode="statistical" />
-            </LayerBlock>
-        );
-        layer3 = (
-            <LayerBlock
-                label="Layer 3"
-                title="Evidence vs Chance"
-                caption="Where this falls if there were no real relationship: values deeper in the null tail are harder to explain by chance alone."
-            >
-                <NullDistributionViz kind="symmetric" observed={stat} pValue={pValue} sampleSize={sampleSize} title="Null reference for correlation" />
-            </LayerBlock>
-        );
+        mainChart = <ScatterResultViz col1={numeric[0]} col2={numeric[1]} significant={significant} stat={stat} pValue={pValue} aiAssisted={aiAssisted} mode="statistical" />;
         label = (
             <div className="ichart__axis-labels">
                 <span>{numeric[0].name}</span>
@@ -1511,54 +2669,15 @@ function ResultChart({
             </div>
         );
     } else if (resolvedEvidence.kind === EVIDENCE_KINDS.GROUP_COMPARISON && categorical[0] && numeric[0]) {
-        const isOverallScope = resolvedEvidence?.details?.scope === 'overall_multi_group' || (resolvedEvidence?.details?.groupCount ?? 0) > 2;
-        layer1 = (
-            <LayerBlock
-                label="Layer 1"
-                title="Evidence"
-                caption={isOverallScope
-                    ? 'What to look at: whether the group score ranges sit on top of one another on the same score axis, which is what overlap actually means here.'
-                    : 'What to look at: whether the two groups occupy the same score range on the same axis.'}
-            >
-                <GroupDifferenceViz catCol={categorical[0]} numCol={numeric[0]} significant={significant} pValue={pValue} evidence={resolvedEvidence} mode="raw" />
-            </LayerBlock>
-        );
-        layer2 = (
-            <LayerBlock
-                label="Layer 2"
-                title="Effect"
-                caption={isOverallScope
-                    ? 'What we measured, and how sure: each row is a gap in average score between two groups. Positive numbers mean the first named group scores higher on average.'
-                    : 'What we measured, and how sure: the dot is the average score gap and the line shows the likely range for that gap.'}
-            >
-                <GroupDifferenceViz catCol={categorical[0]} numCol={numeric[0]} significant={significant} pValue={pValue} evidence={resolvedEvidence} mode="statistical" />
-            </LayerBlock>
-        );
-        layer3 = (
-            <LayerBlock
-                label="Layer 3"
-                title="Evidence vs Chance"
-                caption={isOverallScope
-                    ? 'Where your ANOVA number falls if all group averages were really the same and any gaps were just random noise.'
-                    : 'Where your observed group gap falls if the true difference between the two groups were really zero.'}
-            >
-                <NullDistributionViz
-                    kind={isOverallScope ? 'positive' : 'symmetric'}
-                    observed={isOverallScope ? stat : resolvedEvidence?.details?.meanDifference}
-                    pValue={pValue}
-                    sampleSize={sampleSize}
-                    title={isOverallScope ? 'What F values look like when all group averages are really the same' : 'What mean differences look like when the two group averages are really the same'}
-                    observedLabel={isOverallScope
-                        ? `your F = ${formatNumber(stat, 2)}`
-                        : `your difference = ${formatNumber(resolvedEvidence?.details?.meanDifference, 2)}`}
-                    nullSubject={isOverallScope
-                        ? 'the group averages were really the same'
-                        : 'the two group averages were really the same'}
-                />
-                <InferenceCard title="What this means">
-                    {buildGroupLayer3Inference({ evidence: resolvedEvidence, stat, pValue })}
-                </InferenceCard>
-            </LayerBlock>
+        mainChart = (
+            <GroupedBarResultViz
+                catCol={categorical[0]}
+                numCol={numeric[0]}
+                significant={significant}
+                pValue={pValue}
+                aiAssisted={aiAssisted}
+                pairwiseComparisons={resolvedEvidence?.details?.pairwiseComparisons ?? []}
+            />
         );
         label = (
             <div className="ichart__axis-labels">
@@ -1570,33 +2689,7 @@ function ResultChart({
             </div>
         );
     } else if (resolvedEvidence.kind === EVIDENCE_KINDS.CONTINGENCY_DEVIATION && categorical.length >= 2) {
-        layer1 = (
-            <LayerBlock
-                label="Layer 1"
-                title="Evidence"
-                caption="What to look at: the raw category pattern before comparing it with an independence baseline."
-            >
-                <ChiSquareEvidenceViz col1={categorical[0]} col2={categorical[1]} significant={significant} mode="raw" resultEvidence={resolvedEvidence} />
-            </LayerBlock>
-        );
-        layer2 = (
-            <LayerBlock
-                label="Layer 2"
-                title="Effect"
-                caption="What we measured, and how sure: which cells deviate from independence and how large that association is overall."
-            >
-                <ChiSquareEvidenceViz col1={categorical[0]} col2={categorical[1]} significant={significant} mode="statistical" resultEvidence={resolvedEvidence} />
-            </LayerBlock>
-        );
-        layer3 = (
-            <LayerBlock
-                label="Layer 3"
-                title="Evidence vs Chance"
-                caption="Where the observed χ² value falls if the variables were actually independent."
-            >
-                <NullDistributionViz kind="positive" observed={stat} pValue={pValue} sampleSize={sampleSize} title="Null reference for χ²" />
-            </LayerBlock>
-        );
+        mainChart = <ChiSquareEvidenceViz col1={categorical[0]} col2={categorical[1]} significant={significant} mode="statistical" resultEvidence={resolvedEvidence} aiAssisted={aiAssisted} pValue={pValue} />;
         label = (
             <div className="ichart__axis-labels">
                 <span>{categorical[0].name}</span>
@@ -1607,43 +2700,13 @@ function ResultChart({
             </div>
         );
     } else if (resolvedEvidence.kind === EVIDENCE_KINDS.DISTRIBUTION_SHAPE && numeric[0]) {
-        layer1 = (
-            <LayerBlock
-                label="Layer 1"
-                title="Evidence"
-                caption="What to look at: the raw distribution shape and where values cluster."
-            >
-                <HistogramResultViz col={numeric[0]} significant={significant} mode="raw" />
-            </LayerBlock>
-        );
-        layer2 = (
-            <LayerBlock
-                label="Layer 2"
-                title="Effect"
-                caption="What we measured, and how sure: how the sample quantiles line up with an ideal reference shape."
-            >
-                <div className="rchart__panel">
-                    <EvidenceSummaryCard
-                        title="Q-Q Comparison"
-                        subtitle="If points hug the reference diagonal, the observed distribution is close to the expected shape. Systematic bends indicate where the shape differs."
-                    >
-                        <QQPlotViz col={numeric[0]} />
-                    </EvidenceSummaryCard>
-                </div>
-            </LayerBlock>
-        );
-        layer3 = (
-            <LayerBlock
-                label="Layer 3"
-                title="Evidence vs Chance"
-                caption="Where this falls if the data really followed the reference shape: compare the actual Q-Q pattern to same-size null samples."
-            >
-                <div className="rchart__qq-calibration">
-                    <QQPlotViz col={numeric[0]} seed={11} compact />
-                    <QQPlotViz col={numeric[0]} seed={29} compact />
-                    <QQPlotViz col={numeric[0]} seed={47} compact />
-                </div>
-            </LayerBlock>
+        mainChart = (
+            <HistogramWithReferenceCue
+                col={numeric[0]}
+                pValue={pValue}
+                significant={significant}
+                aiAssisted={aiAssisted}
+            />
         );
         label = (
             <div className="ichart__axis-labels">
@@ -1653,32 +2716,13 @@ function ResultChart({
             </div>
         );
     } else if (resolvedEvidence.kind === EVIDENCE_KINDS.OUTLIER_SIGNAL && numeric[0]) {
-        layer1 = (
-            <LayerBlock
-                label="Layer 1"
-                title="Evidence"
-                caption="What to look at: the raw distribution together with the values beyond the outlier fence."
-            >
-                <HistogramResultViz col={numeric[0]} significant={significant} markOutliers mode="raw" />
-            </LayerBlock>
-        );
-        layer2 = (
-            <LayerBlock
-                label="Layer 2"
-                title="Effect"
-                caption="What we measured, and how sure: how far the extreme values extend beyond the IQR-based fence."
-            >
-                <HistogramResultViz col={numeric[0]} significant={significant} markOutliers mode="statistical" />
-            </LayerBlock>
-        );
-        layer3 = (
-            <LayerBlock
-                label="Layer 3"
-                title="Evidence vs Chance"
-                caption="Where this falls if those extremes were only ordinary variation rather than genuine outliers."
-            >
-                <NullDistributionViz kind="positive" observed={stat} pValue={pValue} sampleSize={sampleSize} title="Null reference for the outlier check" />
-            </LayerBlock>
+        mainChart = (
+            <OutlierSeverityViz
+                col={numeric[0]}
+                pValue={pValue}
+                significant={significant}
+                aiAssisted={aiAssisted}
+            />
         );
         label = (
             <div className="ichart__axis-labels">
@@ -1689,19 +2733,28 @@ function ResultChart({
         );
     }
 
-    if (!layer1 || !layer2 || !layer3) return null;
+    if (!mainChart) return null;
 
     return (
         <div className="ichart ichart--result nodrag">
-            <VerdictSummary interpretation={interpretation} significant={significant} aiAssisted={aiAssisted} />
-            {layer1}
-            {layer2}
-            {layer3}
+            <VerdictSummary
+                interpretation={interpretation}
+                significant={significant}
+                aiAssisted={aiAssisted}
+                narrativeLines={narrativeLines}
+            />
+            <MainChartBlock chanceCopy={chanceCopy}>
+                {mainChart}
+            </MainChartBlock>
             <details className="rchart__details">
                 <summary>Test details</summary>
                 <div className="rchart__details-body">
+                    <div className="ichart__axis-labels">
+                        <span>{method || resolvedEvidence?.details?.statLabel || 'test'}</span>
+                        {stat != null ? <span>stat = {formatNumber(stat, 3)}</span> : null}
+                        {Number.isFinite(Number(pValue)) ? <span>{formatPValueLabel(pValue)}</span> : null}
+                    </div>
                     <ResultEvidenceHeader evidence={resolvedEvidence} />
-                    <ResultExplanationCard explanation={explanation} />
                     <div className="ichart__axis-labels">
                         {label?.props?.children}
                     </div>

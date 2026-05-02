@@ -67,6 +67,63 @@ function getGroupedNumericValues(groupCol, valueCol, spec) {
     return orderedGroups.map((name) => ({ name, values: groups.get(name) ?? [] }));
 }
 
+function formatPValueBin(value) {
+    if (!Number.isFinite(Number(value))) return null;
+    const numeric = Number(value);
+    if (numeric < 0.001) return 'p < 0.001';
+    if (numeric < 0.01) return 'p < 0.01';
+    if (numeric < 0.05) return 'p < 0.05';
+    if (numeric < 0.1) return 'p < 0.10';
+    return 'p ≥ 0.10';
+}
+
+function buildPairwiseWelchComparisons(grouped) {
+    const pairs = [];
+    for (let i = 0; i < grouped.length; i += 1) {
+        for (let j = i + 1; j < grouped.length; j += 1) {
+            const a = grouped[i];
+            const b = grouped[j];
+            const m1 = jStat.mean(a.values);
+            const m2 = jStat.mean(b.values);
+            const s1 = jStat.stdev(a.values, true);
+            const s2 = jStat.stdev(b.values, true);
+            const n1 = a.values.length;
+            const n2 = b.values.length;
+            const se = Math.sqrt((s1 * s1) / n1 + (s2 * s2) / n2);
+            const diff = m2 - m1;
+            const t = se > 0 ? diff / se : 0;
+            const dfNumerator = Math.pow((s1 * s1) / n1 + (s2 * s2) / n2, 2);
+            const dfDenominator = ((Math.pow((s1 * s1) / n1, 2)) / Math.max(1, n1 - 1))
+                + ((Math.pow((s2 * s2) / n2, 2)) / Math.max(1, n2 - 1));
+            const df = dfDenominator > 0 ? dfNumerator / dfDenominator : n1 + n2 - 2;
+            const rawP = 2 * (1 - jStat.studentt.cdf(Math.abs(t), df));
+            const tCrit = jStat.studentt.inv(1 - ALPHA / 2, df);
+            const ciLow = diff - tCrit * se;
+            const ciHigh = diff + tCrit * se;
+            pairs.push({
+                groupA: a.name,
+                groupB: b.name,
+                meanDifference: fmt(diff, 3),
+                ciLow: fmt(ciLow, 3),
+                ciHigh: fmt(ciHigh, 3),
+                rawPValue: fmt(rawP, 6),
+                degreesOfFreedom: fmt(df, 2),
+            });
+        }
+    }
+
+    const pairCount = pairs.length || 1;
+    return pairs.map((pair) => {
+        const adjusted = Math.min(1, Number(pair.rawPValue) * pairCount);
+        return {
+            ...pair,
+            adjustedPValue: fmt(adjusted, 6),
+            pValueBin: formatPValueBin(adjusted),
+            significant: adjusted < ALPHA,
+        };
+    });
+}
+
 function buildEstimatedSummary({ method, significant, pValue, scopeDetails }) {
     const cat = scopeDetails.variableRoles?.categorical?.[0];
     const num = scopeDetails.variableRoles?.numeric?.[0];
@@ -245,6 +302,7 @@ function oneWayAnova(groupCol, valueCol, spec) {
     const significant = pValue < ALPHA;
     const ssTotal = ssBetween + ssWithin;
     const etaSquared = ssTotal > 0 ? ssBetween / ssTotal : 0;
+    const pairwiseComparisons = buildPairwiseWelchComparisons(grouped);
 
     return {
         supported: true,
@@ -279,6 +337,8 @@ function oneWayAnova(groupCol, valueCol, spec) {
                     std: fmt(jStat.stdev(group.values, true), 2),
                     count: group.values.length,
                 })),
+                pairwiseComparisons,
+                postHocMethod: 'Pairwise Welch with Bonferroni correction',
                 degreesOfFreedom: [df1, df2],
                 pValue: fmt(pValue),
                 significant,
@@ -447,6 +507,90 @@ Return a JSON object with exactly these fields:
 - interpretation: one short sentence about the likely result, without introducing any variables other than the provided ones
 
 Do not invent new variables. Do not mention columns that are not in the provided relevant-column list.`;
+
+const RESULT_NARRATIVE_SYSTEM_PROMPT = `You turn structured statistical test results into a short user-facing explanation for a result card.
+
+Return a JSON object with exactly these keys:
+- headline: short phrase (max 10 words)
+- line1: what we found, in plain units and plain language
+- line2: how sure we are, using the provided interval/range in the same units
+- line3: how unlikely under chance, using the provided p-value bin and a plain-language explanation
+
+Rules:
+- Use only the supplied variables, groups, values, and p-value bin.
+- Do not invent any numbers.
+- Do not use jargon such as null, permutation, relabeling, tail, mirror cutoff, reference distribution, omnibus, residual, or effect size unless the provided label itself requires it.
+- If there is no computed p-value, line3 should plainly say there is no computed p-value available and why.
+- Be concise, clear, and readable by a non-statistician.`;
+
+function buildResultNarrativeFacts(result, hypothesis, spec) {
+    const evidence = result?.evidence ?? {};
+    const details = evidence.details ?? {};
+    const variables = hypothesis?.variables ?? evidence.variables ?? [];
+    const variableTypes = variables.map((name) => ({
+        name,
+        type: spec.columns.find((c) => c.name === name)?.type ?? 'unknown',
+    }));
+    return {
+        method: result?.method ?? hypothesis?.suggested_test ?? '',
+        testType: result?.testType ?? hypothesis?.type ?? '',
+        variables,
+        variableTypes,
+        significant: !!result?.significant,
+        aiAssisted: !!result?.aiAssisted,
+        pValue: Number.isFinite(Number(result?.pValue)) ? Number(result.pValue) : null,
+        pValueBin: Number.isFinite(Number(result?.pValue)) ? formatPValueBin(Number(result.pValue)) : null,
+        stat: Number.isFinite(Number(result?.stat)) ? Number(result.stat) : null,
+        scope: details.scope ?? null,
+        groups: details.groups ?? [],
+        groupLabels: details.groupLabels ?? [],
+        meanDifference: Number.isFinite(Number(details.meanDifference)) ? Number(details.meanDifference) : null,
+        meanDifferenceCi: Array.isArray(details.meanDifferenceCi) ? details.meanDifferenceCi : null,
+        effectSizeLabel: details.effectSizeLabel ?? null,
+        effectSizeValue: Number.isFinite(Number(details.effectSizeValue)) ? Number(details.effectSizeValue) : null,
+        grandMean: Number.isFinite(Number(details.grandMean)) ? Number(details.grandMean) : null,
+        degreesOfFreedom: details.degreesOfFreedom ?? null,
+        summary: result?.summary ?? '',
+    };
+}
+
+export async function fetchResultNarrative(result, hypothesis, metadata, spec, description = '') {
+    const facts = buildResultNarrativeFacts(result, hypothesis, spec);
+    const prompt = JSON.stringify({
+        dataset: { name: metadata?.name ?? '', rows: metadata?.rows ?? null, description: description || '' },
+        resultFacts: facts,
+    }, null, 2);
+
+    const response = await fetch(OPENAI_API_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${getApiKey()}`,
+        },
+        body: JSON.stringify({
+            model: OPENAI_MODEL,
+            messages: [
+                { role: 'system', content: RESULT_NARRATIVE_SYSTEM_PROMPT },
+                { role: 'user', content: prompt },
+            ],
+            temperature: 0.2,
+            max_tokens: 350,
+            response_format: { type: 'json_object' },
+        }),
+    });
+
+    if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody?.error?.message ?? `OpenAI error ${response.status}`);
+    }
+
+    const json = await response.json();
+    const parsed = JSON.parse(json.choices[0].message.content);
+    return {
+        headline: parsed.headline ?? '',
+        lines: [parsed.line1, parsed.line2, parsed.line3].filter(Boolean),
+    };
+}
 
 function buildScopeDetails(hypothesis, spec) {
     const variables = hypothesis.variables ?? [];
