@@ -41,15 +41,15 @@ function scaleX(value, min, max, width = VB_W) {
  *   - Teal solid line    = median
  *   - Hover shows exact bucket range + count inline
  */
-function Histogram({ histogram, stats }) {
+function Histogram({ histogram, stats, compact = false }) {
     const [hovered, setHovered] = useState(null);
     if (!histogram?.length || stats?.min == null) return null;
 
-    const BAR_H  = 64;
+    const BAR_H  = compact ? 54 : 64;
     const TICK_H = 14;
     const VB_H   = BAR_H + TICK_H;
     const n      = histogram.length;
-    const GAP    = 1.5;
+    const GAP    = compact ? 3 : 1.5;
     const barW   = (VB_W - GAP * (n - 1)) / n;
     const maxCnt = Math.max(...histogram.map((b) => b.count));
 
@@ -483,13 +483,13 @@ export function CompletenessChart({ columns, rowCount }) {
  * NumericCharts — rendered when a numeric column row is expanded.
  * Shows: Distribution histogram + Five-number summary box plot
  */
-export function NumericCharts({ col, wide = false }) {
+export function NumericCharts({ col, wide = false, compact = false }) {
     return (
-        <div className={`dsn__charts ${wide ? 'dsn__charts--numeric-wide' : ''}`}>
+        <div className={`dsn__charts ${wide ? 'dsn__charts--numeric-wide' : ''} ${compact ? 'dsn__charts--compact' : ''}`}>
 
             <div className="dsn__chart-section">
                 <div className="dsn__chart-title">Distribution</div>
-                <Histogram histogram={col.histogram} stats={col.stats} />
+                <Histogram histogram={col.histogram} stats={col.stats} compact={compact} />
                 <div className="dsn__chart-legend">
                     <span className="dsn__legend-item dsn__legend-item--median">
                         median {fmt(col.stats?.median)}
@@ -527,11 +527,11 @@ export function NumericCharts({ col, wide = false }) {
  *   Compares raw counts between categories (top category = full bar).
  *   Labels show count and % together so nothing is ambiguous.
  */
-export function CategoricalChart({ col }) {
+export function CategoricalChart({ col, compact = false }) {
     const total = col.total_non_missing ?? col.top_values?.reduce((s, v) => s + v.count, 0) ?? 0;
 
     return (
-        <div className="dsn__charts">
+        <div className={`dsn__charts ${compact ? 'dsn__charts--compact' : ''}`}>
 
             {/* Donut — visual proportion at a glance, hover for details */}
             <div className="dsn__chart-section">
@@ -540,14 +540,16 @@ export function CategoricalChart({ col }) {
             </div>
 
             {/* Frequency table — exact counts and shares, color-matched to donut */}
-            <div className="dsn__chart-section">
-                <div className="dsn__chart-title">Exact counts</div>
-                <FrequencyTable
-                    topValues={col.top_values}
-                    totalNonMissing={total}
-                    uniqueCount={col.unique_count}
-                />
-            </div>
+            {!compact && (
+                <div className="dsn__chart-section">
+                    <div className="dsn__chart-title">Exact counts</div>
+                    <FrequencyTable
+                        topValues={col.top_values}
+                        totalNonMissing={total}
+                        uniqueCount={col.unique_count}
+                    />
+                </div>
+            )}
 
         </div>
     );

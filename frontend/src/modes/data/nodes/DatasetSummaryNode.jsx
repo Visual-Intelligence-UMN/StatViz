@@ -19,6 +19,33 @@ const EDGE_DETAILS = {
     strokeDasharray: '4,3',
 };
 
+function selectMixedPreviewColumns(numericCols, categoricalCols, limit = 8) {
+    const picked = [];
+    const maxNumeric = Math.ceil(limit / 2);
+    const maxCategorical = Math.floor(limit / 2);
+
+    const numericSlice = numericCols.slice(0, maxNumeric);
+    const categoricalSlice = categoricalCols.slice(0, maxCategorical);
+    const rounds = Math.max(numericSlice.length, categoricalSlice.length);
+
+    for (let i = 0; i < rounds; i += 1) {
+        if (numericSlice[i]) picked.push(numericSlice[i]);
+        if (categoricalSlice[i]) picked.push(categoricalSlice[i]);
+    }
+
+    if (picked.length < limit) {
+        const overflow = [
+            ...numericCols.slice(maxNumeric),
+            ...categoricalCols.slice(maxCategorical),
+        ];
+        overflow.forEach((col) => {
+            if (picked.length < limit) picked.push(col);
+        });
+    }
+
+    return picked.slice(0, limit);
+}
+
 function summarizeDatasetDetails(spec) {
     const rowCount = spec.rowCount ?? 0;
     const columns = spec.columns ?? [];
@@ -83,9 +110,9 @@ function CollapsedSummary({ spec, selected }) {
 
 // ── Dashboard column card (one per data column, charts always visible) ──────
 
-function NumericCard({ col, chartsWide = false }) {
+function NumericCard({ col, chartsWide = false, compact = false }) {
     return (
-        <div className="dsn__db-card">
+        <div className={`dsn__db-card ${compact ? 'dsn__db-card--compact' : ''}`}>
             <div className="dsn__db-card-name">{col.name}</div>
             <div className="dsn__col-detail">
                 <span title="missing">{col.missing_count} missing</span>
@@ -94,14 +121,14 @@ function NumericCard({ col, chartsWide = false }) {
                 {col.stats?.min  != null && <span title="range">{col.stats.min}–{col.stats.max}</span>}
                 {col.stats?.std  != null && <span title="std">sd {col.stats.std}</span>}
             </div>
-            <NumericCharts col={col} wide={chartsWide} />
+            <NumericCharts col={col} wide={chartsWide} compact={compact} />
         </div>
     );
 }
 
-function CategoricalCard({ col }) {
+function CategoricalCard({ col, compact = false }) {
     return (
-        <div className="dsn__db-card">
+        <div className={`dsn__db-card ${compact ? 'dsn__db-card--compact' : ''}`}>
             <div className="dsn__db-card-name">
                 {col.name}
                 <span className="dsn__col-type">{col.type}</span>
@@ -110,7 +137,7 @@ function CategoricalCard({ col }) {
                 <span title="missing">{col.missing_count} missing</span>
                 <span title="unique">{col.unique_count} unique</span>
             </div>
-            <CategoricalChart col={col} />
+            <CategoricalChart col={col} compact={compact} />
         </div>
     );
 }
@@ -125,8 +152,9 @@ function ExpandedSummary({ id, spec, selected }) {
     const colsWithMissing = spec.columns.filter((c) => (c.missing_count ?? 0) > 0);
     const totalMissingCells = spec.columns.reduce((sum, col) => sum + (col.missing_count ?? 0), 0);
     const isDashboard = spec.columnCount < 10;
+    const previewCategoricalCols = [...catCols, ...datetimeCols];
     const visiblePreviewCols = !isDashboard
-        ? [...visualNumericCols, ...catCols, ...datetimeCols].slice(0, 6)
+        ? selectMixedPreviewColumns(visualNumericCols, previewCategoricalCols, 8)
         : [];
     const previewColNames = new Set(visiblePreviewCols.map((col) => col.name));
     const remainingNumericCols = visualNumericCols.filter((col) => !previewColNames.has(col.name));
@@ -332,19 +360,6 @@ function ExpandedSummary({ id, spec, selected }) {
                         </div>
                     )}
                 </div>
-                <div className="dsn__summary-stats">
-                    <div className="dsn__summary-stat-line">
-                        {spec.rowCount.toLocaleString()} rows · {spec.columnCount} columns
-                    </div>
-                    <div className="dsn__summary-stat-line">
-                        {spec.numericCount} numeric · {spec.categoricalCount} categorical
-                    </div>
-                    {totalMissingCells > 0 && (
-                        <div className="dsn__summary-stat-subline">
-                            {totalMissingCells.toLocaleString()} missing values in {colsWithMissing.length} column{colsWithMissing.length > 1 ? 's' : ''}
-                        </div>
-                    )}
-                </div>
                 <div className="dsn__summary-stats-wrap">
                     <div className="dsn__summary-stats">
                         <div className="dsn__summary-stat-line">
@@ -434,8 +449,8 @@ function ExpandedSummary({ id, spec, selected }) {
                                 </div>
                                 {visiblePreviewCols.map((col) => (
                                     col.type === 'numeric'
-                                        ? <NumericCard key={col.name} col={col} chartsWide={false} />
-                                        : <CategoricalCard key={col.name} col={col} />
+                                        ? <NumericCard key={col.name} col={col} chartsWide={false} compact />
+                                        : <CategoricalCard key={col.name} col={col} compact />
                                 ))}
                             </div>
                         </div>

@@ -1,6 +1,6 @@
 # StatViz — Current System Structure & Details
 
-> **Last Updated:** May 1, 2026
+> **Last Updated:** May 4, 2026
 > **Author:** Dipan Bag (bag00003@umn.edu)
 > **Project:** UMN Capstone Project, Spring 2026
 > **Hosted At:** GitHub Pages via `actions/deploy-pages`, route `/mindmapper/statviz`
@@ -51,13 +51,16 @@ There is no backend. CSV parsing, statistics, graph state, charts, and OpenAI re
 **Current headline capabilities:**
 - CSV upload by drag-and-drop or click-to-upload popup
 - Dataset description generation from schema
-- Summary node with completeness chart and per-column charts
+- Summary node with completeness chart, mixed visual preview cards, and a right-side dataset-details expansion
 - AI-generated insight nodes
 - AI-generated hypothesis nodes
 - Custom free-text hypothesis workflow
 - In-browser statistical testing using `jstat`, including Pearson, Welch's t-test, chi-square, and one-way ANOVA
 - AI fallback for unsupported tests
-- Result nodes that combine a verdict summary with evidence, effect, and evidence-vs-chance layers
+- Result nodes with AI-assisted interpretation, accept/reject branching, and re-run support
+- AI-generated next-step recommendations after accepted results
+- AI-generated sibling hypotheses after rejected results
+- Fixed top-right quick analysis summary overlay powered by the full graph context
 - Right sidebar with dark mode toggle and dataset-aware AI chat
 - Client-side tool calling over the live dataset and analysis context
 - Scoped Ask AI follow-ups that can target the full dataset or a specific analysis branch
@@ -76,6 +79,7 @@ Browser
 ├── DataModeApp
 │   ├── Handles theme state
 │   ├── Handles CSV drag/drop and upload popup
+│   ├── Hosts fixed top-right quick summary toggle / panel
 │   ├── Mounts right sidebar (dark mode + Ask AI)
 │   ├── Mounts DataCanvas
 │   └── Gates usage through ApiKeyModal
@@ -92,16 +96,20 @@ Browser
 │
 ├── Data Nodes
 │   ├── Dataset → Summary
-│   ├── Summary → Insights
+│   ├── Summary → Insights / More Details
 │   ├── Insight → Hypothesis
 │   ├── Hypothesis → Result
-│   └── Summary → Custom Hypothesis → Result
+│   ├── Summary → Custom Hypothesis → Result
+│   └── Result → Next Step / Sibling Hypothesis
 │
 └── AI / Stats Layer
     ├── descriptionService
+    ├── datasetDetailsService
     ├── insightService
     ├── hypothesisService
     ├── customHypothesisService
+    ├── followupService
+    ├── analysisSummaryService
     ├── chartTypeService
     ├── statisticsService
     └── chatTools + ChatPanel
@@ -152,6 +160,7 @@ mindmapper/
         │       ├── nodes/
         │       │   ├── DatasetNode.jsx
         │       │   ├── DatasetSummaryNode.jsx
+        │       │   ├── DatasetDetailsNode.jsx
         │       │   ├── InsightNode.jsx
         │       │   ├── HypothesisNode.jsx
         │       │   ├── CustomHypothesisNode.jsx
@@ -170,9 +179,12 @@ mindmapper/
         │       │   └── index.js
         │       ├── api/
         │       │   ├── descriptionService.js
+        │       │   ├── datasetDetailsService.js
         │       │   ├── insightService.js
         │       │   ├── hypothesisService.js
         │       │   ├── customHypothesisService.js
+        │       │   ├── followupService.js
+        │       │   ├── analysisSummaryService.js
         │       │   ├── chartTypeService.js
         │       │   ├── statisticsService.js
         │       │   └── chatTools.js
@@ -285,6 +297,9 @@ This registry is assembled into a clean prompt object by `analysisContext.js`.
 | `updateHypothesisStatement` | Keep inline edits in sync between node and registry |
 | `updateHypothesisStatus` | Persist accepted/rejected/pending status |
 | `addResultRecord` | Register test result in analysis map |
+| `allocateNextStepIdentifier` | Issue `NS1`, `NS2`, … identifiers |
+| `allocateInterpretationIdentifier` | Issue `INT1`, `INT2`, … identifiers |
+| `allocateDetailsIdentifier` | Issue `DD1`, `DD2`, … identifiers |
 
 ---
 
@@ -301,6 +316,7 @@ It is responsible for:
 - whole-shell drag-and-drop CSV upload
 - click-to-upload popup positioning
 - right sidebar open/close and resize behavior
+- fixed top-right quick analysis summary toggle and overlay
 - mounting `ChatPanel`
 - mounting `DataCanvas`
 - gating the app with `ApiKeyModal`
@@ -308,6 +324,8 @@ It is responsible for:
 The right sidebar lives directly inside this component and currently contains:
 - a dark mode toggle
 - an "Ask AI" section with `ChatPanel`
+
+The shell also now includes a fixed quick-summary icon in the top-right corner. It opens a compact AI-generated analysis summary panel that uses the full normalized graph context and can be toggled open/closed without changing the graph.
 
 ### DataCanvas
 
@@ -361,16 +379,22 @@ The chat experience now also supports:
 - intent-aware routing between dataset analysis, analysis follow-ups, app-help, harmless social messages, and genuine out-of-scope requests
 - client-side tool execution over both the dataset spec and the normalized analysis registry
 
+The same normalized analysis context is also reused by:
+- the dataset-details AI focus summary
+- accept/reject follow-up generation
+- the fixed quick analysis summary overlay
+
 ---
 
 ## 8. Node Types Reference
 
-The active node registry in `frontend/src/modes/data/nodes/index.js` contains 10 node types:
+The active node registry in `frontend/src/modes/data/nodes/index.js` contains 11 node types:
 
 | Type key | Component | Current usage |
 |----------|-----------|---------------|
 | `dataset` | `DatasetNode` | Active |
 | `datasetsummary` | `DatasetSummaryNode` | Active |
+| `datasetdetails` | `DatasetDetailsNode` | Active |
 | `insight` | `InsightNode` | Active |
 | `hypothesis` | `HypothesisNode` | Active |
 | `customhypothesis` | `CustomHypothesisNode` | Active |
@@ -393,18 +417,31 @@ Acts as the main orchestration node for exploration.
 Current behaviors:
 - collapsed view: compact row/column counts only
 - expanded view: completeness chart plus per-column details
+- completeness area shows only columns with at least one missing value
+- right-hand summary block includes the `More Details` action
 - dashboard mode when `columnCount < 10`
-- scrollable expandable column list when dataset is wider
+- mixed visual preview cards when dataset is wider
+- scrollable expandable column list for the remaining columns
+- `More Details` opens a separate node to the right of the summary node
 
 Main actions:
 - `Generate Insights`
 - `Custom Hypothesis`
+- `More Details`
 
 Important current behavior:
 - identifier-like numeric columns are filtered out of summary visuals
 - narrow datasets render as a visual dashboard
-- wide datasets show a visual preview first and collapse the remaining columns below
+- wide datasets show a mixed compact visual preview first and collapse the remaining columns below
 - the footer action area is visually separated as an `Analysis Actions` panel
+
+### DatasetDetailsNode
+
+This node is opened from the dataset summary’s `More Details` button and is treated as a right-side branch rather than a normal downward child.
+
+It currently shows:
+- selected dataset-level health stats such as missing cells, rows with missing values, duplicate rows, constant columns, likely ID columns, and complete columns
+- a short 2–3 line AI-generated focus note that points the user toward the most useful columns to analyze next
 
 ### InsightNode
 
@@ -424,11 +461,13 @@ Action:
 
 Represents a generated statistical hypothesis. It supports:
 - inline statement editing
-- accept / reject status
 - running a statistical test
 - AI fallback consent when the test is unsupported
 
-It also records its edits and status changes back into the normalized analysis map.
+Important current behavior:
+- once a result exists for a hypothesis, `Run test` is disabled / grayed out on the hypothesis node
+- accept/reject decisions now happen at the result stage instead of the hypothesis node
+- edits still sync back into the normalized analysis map
 
 ### CustomHypothesisNode
 
@@ -444,16 +483,23 @@ From there the user selects a test and runs it through the same stats/fallback s
 
 Displays:
 - method name
-- verdict summary in plain language
+- top summary / interpretation block
 - inline `ResultChart`
 - `AI-assisted` badge when applicable
+- `Accept`, `Reject`, and `Re-run test` controls
 
-The current `ResultChart` is no longer a single generic mini-chart. It renders a layered result explanation:
-- **Layer 1 — Evidence:** what the raw data looks like
-- **Layer 2 — Effect:** what the test measured in data units, with uncertainty
-- **Layer 3 — Evidence vs Chance:** where the observed result lands relative to a null/reference distribution
+Important current behavior:
+- accepting a result marks the parent hypothesis accepted and can spawn:
+  - a `Next Step` recommendation node
+  - a prefilled editable follow-up `Custom Hypothesis` node
+- rejecting a result marks the parent hypothesis rejected and enables creation of an alternative sibling hypothesis rooted in the same ancestor insight
+- `Re-run test` creates a fresh result node for the same hypothesis path
 
 An expandable details section contains lower-level test details and supporting labels.
+
+### NextStepNode
+
+Spawned from accepted results. Shows a concise AI-generated recommended next analytical move and uses the standard header identifier badge (`NS1`, `NS2`, …).
 
 ---
 
@@ -499,17 +545,13 @@ The correlation matrix helper excludes obvious identifier-like numeric columns u
 - distribution shape
 - outlier signal
 
-Each family renders into the same high-level result-card shell:
-1. verdict summary
-2. Layer 1 — Evidence
-3. Layer 2 — Effect
-4. Layer 3 — Evidence vs Chance
-5. expandable details
+Each family renders into the same high-level result-card shell, but the result visual system is no longer the earlier strict three-layer null-overlay design. The current direction is:
+1. top summary / interpretation block
+2. primary chart(s) for the result family
+3. compact p-value / chance explanation near the chart when applicable
+4. expandable details
 
-This is intended to separate:
-- what the data looks like
-- what effect the test estimated
-- why the result is surprising or unsurprising under the null
+The active system has been moving away from large standalone null-distribution panels and toward simpler effect / uncertainty visuals plus short interpretation text.
 
 ### ChatPanel chart reuse
 
@@ -518,8 +560,14 @@ The sidebar chat also reuses chart-data helpers to render:
 - small grouped bar charts
 - mini histograms
 - categorical frequency bars
-- filtered subset comparison bars
-- a compact SVG correlation heatmap
+
+### Current dataset-summary preview behavior
+
+The summary preview is intentionally mixed:
+- not only numeric columns
+- includes categorical and datetime columns when available
+- uses compact cards so more preview charts fit on the same row
+- preview cards are normalized to the same width and height for cleaner scanning
 
 ---
 
@@ -556,6 +604,29 @@ Exports:
 - `fetchTestSuggestions(statement, variables, metadata, spec, description)`
 
 This powers the free-text custom hypothesis workflow.
+
+### `datasetDetailsService.js`
+
+`fetchDatasetFocusLines(metadata, spec, summaryStats, description)` returns a short 2–3 line AI focus note for the dataset-details node. It uses dataset-level health statistics plus the schema summary to suggest which columns are most worth analyzing next.
+
+### `followupService.js`
+
+Exports:
+- `fetchAcceptedNextStepRecommendation(...)`
+- `fetchRejectedAlternativeHypothesis(...)`
+
+This service uses the full normalized analysis context to:
+- suggest a logical next analytical move after an accepted result
+- generate a sibling-worthy alternative hypothesis after a rejected result
+
+### `analysisSummaryService.js`
+
+`fetchAnalysisQuickSummary(analysisContext)` powers the fixed top-right quick-summary overlay. It returns:
+- `headline`
+- `overview`
+- `bullets`
+
+The intent is to give a short AI-generated snapshot of the analysis graph so far without opening the right sidebar chat.
 
 ### `chartTypeService.js`
 

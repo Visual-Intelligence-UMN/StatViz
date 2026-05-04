@@ -612,7 +612,7 @@
 }
 
 .dm-node--summary-expanded-preview {
-    max-width: 760px;
+    max-width: 980px;
 }
 
 /* Dashboard state (< 10 columns) — wide node, side-by-side groups */
@@ -656,6 +656,11 @@
     gap: 6px;
 }
 
+.dsn__db-card--compact {
+    padding: 8px;
+    gap: 5px;
+}
+
 .dsn__chart-suppressed {
     font-size: 10px;
     line-height: 1.45;
@@ -677,6 +682,10 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.dsn__db-card--compact .dsn__db-card-name {
+    font-size: 10px;
 }
 
 .dsn__stats-bar {
@@ -783,6 +792,11 @@
     font-size: 10px;
     color: var(--dm-node-meta);
     font-variant-numeric: tabular-nums;
+}
+
+.dsn__db-card--compact .dsn__col-detail {
+    gap: 6px;
+    font-size: 9px;
 }
 
 /* Top-value chips */
@@ -897,6 +911,10 @@
     gap: 10px;
 }
 
+.dsn__charts--compact {
+    gap: 6px;
+}
+
 .dsn__charts--numeric-wide {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -915,12 +933,20 @@
     gap: 5px;
 }
 
+.dsn__charts--compact .dsn__chart-section {
+    gap: 4px;
+}
+
 .dsn__chart-title {
     font-size: 8.5px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--dm-text-muted);
+}
+
+.dsn__charts--compact .dsn__chart-title {
+    font-size: 8px;
 }
 
 /* Legend row below histogram */
@@ -930,12 +956,21 @@
     flex-wrap: wrap;
 }
 
+.dsn__charts--compact .dsn__chart-legend {
+    gap: 6px;
+}
+
 .dsn__legend-item {
     font-size: 9px;
     color: var(--dm-node-meta);
     display: flex;
     align-items: center;
     gap: 4px;
+}
+
+.dsn__charts--compact .dsn__legend-item {
+    font-size: 8px;
+    gap: 3px;
 }
 
 /* Colored line swatch before legend text */
@@ -976,6 +1011,10 @@
 .dm-chart-svg {
     display: block;
     overflow: visible;
+}
+
+.dsn__charts--compact .dm-chart-svg {
+    max-height: 112px;
 }
 
 /* Hover cursor on interactive SVG elements */
@@ -1065,6 +1104,39 @@
     font-size: 10px;
     color: var(--dm-text-secondary);
     line-height: 1.4;
+}
+
+.dsn__dashboard--preview {
+    padding-top: 4px;
+}
+
+.dsn__dashboard--preview .dsn__db-col {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: auto;
+    gap: 8px;
+    grid-auto-rows: 1fr;
+}
+
+.dsn__dashboard--preview .dsn__db-card {
+    height: 100%;
+    min-height: 238px;
+}
+
+.dsn__dashboard--preview .dsn__db-card--compact {
+    min-height: 238px;
+}
+
+.dsn__dashboard--preview .dsn__charts {
+    flex: 1;
+}
+
+.dsn__dashboard--preview .dsn__charts--compact {
+    justify-content: space-between;
+    height: 100%;
+}
+
+.dsn__dashboard--preview .dsn__chart-section {
+    min-height: 0;
 }
 
 /* ── Frequency table (categorical) ───────────────────────────────────────── */
