@@ -1,33 +1,89 @@
-# StatViz — Visual Data Analysis Workbench
+# StatViz — Visual Statistical Analysis Workbench
 
-A browser-based, AI-assisted data analysis tool. Upload a CSV, explore column distributions, let the AI surface insights, generate statistical hypotheses, and run tests — all on an interactive canvas.
+StatViz is a browser-based, node-driven data analysis workspace for CSV datasets. It helps users move from raw tabular data to insights, hypotheses, statistical tests, and interpretable result nodes on an interactive canvas.
 
 > Capstone Project — Dipan Bag, Spring 2026
 
 ---
 
-## Features
+## What It Does
 
-- **Drag & drop CSV upload** — parsed entirely in-browser, no data leaves your machine
-- **Visual dataset summary** — completeness chart, histograms and box plots for numeric columns, donut charts and frequency tables for categorical ones
-- **AI-generated dataset description** — one-line context description, auto-generated and editable, injected into all downstream AI calls
-- **AI-driven insights** — 3–5 analytical insights grouped by type: Relationships, Group Differences, Distribution Issues, Outlier Candidates — each colour-coded
-- **Hypothesis generation** — click any insight to generate a testable statistical hypothesis with suggested test, directionality, and assumption notes; statement is inline-editable
-- **Statistical test runner** — Pearson correlation, Welch's t-test, and chi-square run instantly via jstat; for unsupported tests (ANOVA, Mann-Whitney, etc.) the user is prompted before an AI estimate is used
-- **Result nodes** — each test spawns a Result node showing the test statistic, p-value, significance verdict, and a plain-English summary
+StatViz is designed around a visible analysis graph:
+
+- `Dataset` node for the uploaded file
+- `Dataset Summary` node for completeness, preview charts, and dataset-level details
+- `Insight` nodes for AI-suggested analytical directions
+- `Hypothesis` nodes for testable claims
+- `Result` nodes for statistical outputs and interpretation
+- `Next Step` / follow-up nodes for continued analysis
+
+Instead of hiding the workflow behind menus, the app keeps the reasoning trail visible.
+
+---
+
+## Current Features
+
+- **CSV upload in the browser**
+  - drag and drop
+  - click anywhere on the blank canvas to upload
+  - use the built-in sample exercise dataset directly from the empty canvas
+
+- **Dataset description and summary**
+  - AI-generated editable dataset description
+  - completeness section focused on columns with missing values
+  - mixed visual preview cards for numeric and categorical columns
+  - `More Details` branch with dataset-health metrics and short AI focus guidance
+
+- **AI-generated insights**
+  - relationship insights
+  - group-difference insights
+  - distribution-shape insights
+  - outlier-candidate insights
+
+- **Hypothesis generation**
+  - create hypotheses from insight nodes
+  - create custom hypotheses manually
+  - inline-edit hypothesis statements before testing
+
+- **Statistical testing**
+  - in-browser supported tests via `jstat`, including:
+    - Pearson correlation
+    - Welch’s two-sample t-test
+    - chi-square test of independence
+    - one-way ANOVA
+  - AI-assisted fallback when a test is unsupported or estimated
+
+- **Result workflow**
+  - AI-assisted result summaries
+  - chart-based result interpretation
+  - accept / reject on result nodes
+  - re-run test from the result node
+  - accepted results can generate a `Next Step` node and a follow-up editable hypothesis
+  - rejected results can generate an alternative sibling hypothesis
+
+- **Ask AI**
+  - dataset-aware right-sidebar assistant
+  - can reason over the current graph, results, and branches
+  - supports scoped follow-ups through graph context
+
+- **Quick analysis summary**
+  - fixed top-right summary toggle
+  - short AI-generated overview of the analysis done so far
 
 ---
 
 ## Tech Stack
 
-| Layer | Library |
+| Layer | Library / Service |
 |---|---|
-| UI framework | React 18 + Vite |
-| Canvas | `@xyflow/react` (React Flow) |
-| State | Zustand |
-| Statistics | jstat |
-| AI | OpenAI API (`gpt-4o-mini`) — user-supplied key |
-| Styling | Plain CSS (BEM-style, CSS custom properties for theming) |
+| UI framework | React + Vite |
+| Canvas / graph | `@xyflow/react` (React Flow) |
+| State management | Zustand |
+| Charts | Recharts + custom SVG charts |
+| Statistics | `jstat` |
+| Layout | `@dagrejs/dagre` |
+| AI services | OpenAI Chat Completions API |
+| Styling | Plain CSS |
 
 ---
 
@@ -39,55 +95,127 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173).
+Then open:
 
-No `.env` file or API key configuration needed — the app prompts users to enter their own OpenAI API key on first visit to `/statviz`.
+```text
+http://localhost:5173
+```
+
+The active app route is:
+
+```text
+/statviz
+```
+
+Note:
+- the app uses a user-provided OpenAI API key
+- the key is stored in browser session state for the running session
 
 ---
 
-## Usage
+## Sample Dataset
 
-1. Go to `/` for the landing page. Click **Explore StatViz** to open the app.
-2. On first visit you'll be prompted to enter your OpenAI API key (stored only in your browser session).
-3. Drag and drop a CSV file onto the canvas, or click anywhere to browse.
-4. A **Dataset node** appears. The AI generates a one-line description — edit it to improve downstream results.
-5. Click **View Summary** to open a Summary node with per-column visualisations.
-6. Click **Generate Insights** at the bottom of the Summary node to get AI-generated insights.
-7. Click **Generate Hypothesis** on any Insight node to form a testable hypothesis.
-8. Click **Run [test name]** on a Hypothesis node to execute the test and spawn a Result node.
-9. **Accept** or **Reject** the hypothesis once you've reviewed the result.
+The empty canvas includes a `Use Sample Dataset` option.
+
+The app expects the sample exercise CSV at:
+
+```text
+frontend/public/sample/exercise/Exercise.csv
+```
+
+This sample is also referenced by the landing page and shared sample-dataset config.
+
+---
+
+## Typical Workflow
+
+1. Open StatViz.
+2. Upload a CSV or use the sample dataset.
+3. Review the dataset description and summary.
+4. Open `More Details` if needed for dataset-health metrics.
+5. Generate insight nodes from the summary.
+6. Generate or author a hypothesis.
+7. Run the suggested test.
+8. Review the result node and charts.
+9. Accept or reject the result.
+10. Continue with a next-step recommendation or an alternative sibling hypothesis.
 
 ---
 
 ## Project Structure
 
-```
+```text
 frontend/src/
-├── pages/
-│   └── LandingPage.jsx        # Info page at "/"
 ├── app/
-│   └── AppShell.jsx           # Wrapper for /statviz
+├── pages/
+│   └── LandingPage.jsx
+├── sampleDatasets.js
+├── constants/
 ├── modes/data/
-│   ├── DataModeApp.jsx        # Top-level canvas shell
+│   ├── DataModeApp.jsx
+│   ├── DataModeApp.css
+│   ├── store/
+│   │   ├── useDataModeStore.js
+│   │   └── analysisContext.js
 │   ├── components/
-│   │   ├── DataCanvas.jsx     # React Flow canvas
-│   │   ├── DatasetSidebar.jsx
+│   │   ├── DataCanvas.jsx
 │   │   ├── UploadPopup.jsx
-│   │   └── ApiKeyModal.jsx    # API key entry on first visit
-│   ├── nodes/                 # DatasetNode, DatasetSummaryNode, InsightNode,
-│   │   └── ...                # HypothesisNode, ResultNode, ColumnNode, ColumnChart
+│   │   ├── ApiKeyModal.jsx
+│   │   └── ChatPanel.jsx
+│   ├── nodes/
+│   │   ├── DatasetNode.jsx
+│   │   ├── DatasetSummaryNode.jsx
+│   │   ├── DatasetDetailsNode.jsx
+│   │   ├── InsightNode.jsx
+│   │   ├── HypothesisNode.jsx
+│   │   ├── CustomHypothesisNode.jsx
+│   │   ├── ResultNode.jsx
+│   │   ├── NextStepNode.jsx
+│   │   ├── InterpretationNode.jsx
+│   │   ├── ColumnChart.jsx
+│   │   ├── charts/
+│   │   │   ├── InsightChart.jsx
+│   │   │   ├── ResultChart.jsx
+│   │   │   ├── chartData.js
+│   │   │   └── charts.css
+│   │   ├── nodes.css
+│   │   └── index.js
 │   ├── api/
+│   │   ├── descriptionService.js
+│   │   ├── datasetDetailsService.js
 │   │   ├── insightService.js
 │   │   ├── hypothesisService.js
-│   │   ├── descriptionService.js
-│   │   └── statisticsService.js
-│   ├── store/
-│   │   └── useDataModeStore.js
+│   │   ├── customHypothesisService.js
+│   │   ├── followupService.js
+│   │   ├── analysisSummaryService.js
+│   │   ├── chartTypeService.js
+│   │   ├── statisticsService.js
+│   │   └── chatTools.js
 │   └── utils/
 │       ├── csvParser.js
 │       ├── layoutGraph.js
-│       └── insightEngine.js
-└── constants/
-    ├── api.js                 # OPENAI_API_URL, getApiKey()
-    └── models.js              # OPENAI_MODEL
+│       └── mockGraph.js
+└── main.jsx
 ```
+
+---
+
+## Notes
+
+- The app is browser-first: parsing, charting, graph state, and supported statistics happen client-side.
+- AI is used for description, insight generation, hypothesis generation, follow-ups, summaries, and interpretation.
+- Some result charts and statistical explanation surfaces are still evolving as the visualization system is refined.
+
+---
+
+## Deployment
+
+The project is set up for static frontend deployment through GitHub Pages.
+
+The hosted route uses:
+
+```text
+/mindmapper/statviz
+```
+
+SPA routing is supported through the `404.html` redirect pattern used in the frontend `public/` folder.
