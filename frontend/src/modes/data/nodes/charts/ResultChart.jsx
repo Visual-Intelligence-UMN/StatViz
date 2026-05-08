@@ -1209,10 +1209,13 @@ function QQReferenceViz({ col, pValue, significant, aiAssisted = false }) {
     const min = Math.min(...mins);
     const max = Math.max(...mins);
     const width = 300;
-    const height = 132;
-    const pad = 22;
-    const xFor = (value) => pad + ((value - min) / Math.max(0.0001, max - min)) * (width - pad * 2);
-    const yFor = (value) => height - pad - ((value - min) / Math.max(0.0001, max - min)) * (height - pad * 2);
+    const height = 144;
+    const padLeft = 34;
+    const padRight = 18;
+    const padTop = 16;
+    const padBottom = 28;
+    const xFor = (value) => padLeft + ((value - min) / Math.max(0.0001, max - min)) * (width - padLeft - padRight);
+    const yFor = (value) => height - padBottom - ((value - min) / Math.max(0.0001, max - min)) * (height - padTop - padBottom);
     const hasPValue = Number.isFinite(Number(pValue)) && !aiAssisted;
     return (
         <SummaryChartFrame
@@ -1239,8 +1242,16 @@ function QQReferenceViz({ col, pValue, significant, aiAssisted = false }) {
                     fill={significant ? 'rgba(16,185,129,0.55)' : 'rgba(244,63,94,0.48)'}
                 />
             ))}
-            <text x={pad} y={height - 6} textAnchor="start" className="rchart__axis-text">expected quantiles if the shape were normal</text>
-            <text x={width - pad} y={height - 6} textAnchor="end" className="rchart__axis-text">observed quantiles from your data</text>
+            <text x={width / 2} y={height - 6} textAnchor="middle" className="rchart__axis-text">expected quantiles if the shape were normal</text>
+            <text
+                x={12}
+                y={height / 2}
+                textAnchor="middle"
+                className="rchart__axis-text"
+                transform={`rotate(-90 12 ${height / 2})`}
+            >
+                observed quantiles from your data
+            </text>
         </svg>
         <div className="rchart__mini-legend">
             <span><span className="rchart__swatch rchart__swatch--tail" />dashed line = where the points would sit if the distribution were close to normal</span>

@@ -826,7 +826,7 @@
 /* ── Dataset description textarea ────────────────────────────────────── */
 
 .dsn__desc-wrap {
-    padding: 4px 12px 10px;
+    padding: 6px 12px 12px;
 }
 
 .dsn__desc-label {
@@ -844,19 +844,20 @@
     resize: vertical;
     border: 1.5px solid var(--dm-accent-mid, #818cf8);
     border-radius: 7px;
-    background: var(--dm-accent-dim, rgba(99,102,241,0.06));
+    background: #fff;
     color: var(--dm-text-primary);
     font-family: 'Inter', system-ui, sans-serif;
     font-size: 12px;
     line-height: 1.5;
-    padding: 8px 10px;
+    min-height: 92px;
+    padding: 10px 12px;
     outline: none;
     transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 .dsn__desc-input:focus {
     border-color: var(--dm-accent);
-    background: var(--dm-accent-dim, rgba(99,102,241,0.1));
+    background: #fff;
 }
 
 .dsn__desc-input::placeholder {
@@ -868,6 +869,41 @@
     color: var(--dm-text-muted);
     font-style: italic;
     cursor: default;
+    border-style: dashed;
+}
+
+.dsn__desc-display {
+    width: 100%;
+    min-height: 92px;
+    box-sizing: border-box;
+    border: 1.5px solid rgba(148, 163, 184, 0.35);
+    border-radius: 8px;
+    background: rgba(99, 102, 241, 0.05);
+    color: var(--dm-text-primary);
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 12px;
+    line-height: 1.55;
+    padding: 10px 12px;
+    text-align: left;
+    white-space: pre-wrap;
+    cursor: text;
+    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dsn__desc-display:hover {
+    border-color: rgba(99, 102, 241, 0.4);
+    background: rgba(99, 102, 241, 0.07);
+}
+
+.dsn__desc-display:focus-visible {
+    outline: none;
+    border-color: var(--dm-accent);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.12);
+}
+
+.dsn__desc-display--loading {
+    color: var(--dm-text-muted);
+    font-style: italic;
     border-style: dashed;
 }
 

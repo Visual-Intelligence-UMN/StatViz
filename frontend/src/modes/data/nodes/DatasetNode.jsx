@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import useDataModeStore from '../store/useDataModeStore';
 import { fetchDatasetDescription } from '../api/descriptionService';
@@ -20,6 +20,8 @@ function DatasetNode({ id, data, selected }) {
     const description    = useDataModeStore((s) => s.datasetDescription);
     const setDescription = useDataModeStore((s) => s.setDatasetDescription);
     const descFetched    = useRef(false);
+    const textareaRef    = useRef(null);
+    const [editingDesc, setEditingDesc] = useState(false);
 
     // Auto-generate description as soon as the node mounts with spec available
     useEffect(() => {
@@ -31,6 +33,12 @@ function DatasetNode({ id, data, selected }) {
             .then((text) => setDescription(text))
             .catch(() => {});
     }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        if (!editingDesc || !textareaRef.current) return;
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange?.(textareaRef.current.value.length, textareaRef.current.value.length);
+    }, [editingDesc]);
 
     // ── View Summary ──────────────────────────────────────────────────────
 
@@ -91,13 +99,25 @@ function DatasetNode({ id, data, selected }) {
 
             {/* AI-generated description, user-editable */}
             <div className="dsn__desc-wrap">
-                <textarea
-                    className={`dsn__desc-input ${!description ? 'dsn__desc-input--loading' : ''}`}
-                    value={description}
-                    placeholder="Generating description…"
-                    onChange={(e) => setDescription(e.target.value)}
-                    rows={2}
-                />
+                {editingDesc ? (
+                    <textarea
+                        ref={textareaRef}
+                        className={`dsn__desc-input ${!description ? 'dsn__desc-input--loading' : ''}`}
+                        value={description}
+                        placeholder="Generating description…"
+                        onChange={(e) => setDescription(e.target.value)}
+                        onBlur={() => setEditingDesc(false)}
+                        rows={4}
+                    />
+                ) : (
+                    <button
+                        type="button"
+                        className={`dsn__desc-display ${!description ? 'dsn__desc-display--loading' : ''}`}
+                        onClick={() => setEditingDesc(true)}
+                    >
+                        {description || 'Generating description…'}
+                    </button>
+                )}
             </div>
 
             {hasSpec && (
