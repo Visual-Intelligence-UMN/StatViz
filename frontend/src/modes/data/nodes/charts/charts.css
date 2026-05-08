@@ -9,6 +9,43 @@
     border-top-color: rgba(0, 0, 0, 0.08);
 }
 
+.ichart__stack {
+    display: grid;
+    gap: 2px;
+}
+
+.ichart__stack + .ichart__stack {
+    margin-top: 10px;
+}
+
+.ichart__mini-title {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #94a3b8;
+}
+
+.ichart__svg-wrap {
+    width: 100%;
+}
+
+.ichart__svg {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.ichart__svg-label {
+    font-size: 8.5px;
+    fill: #94a3b8;
+}
+
+.ichart__svg-label--note {
+    font-size: 8px;
+    fill: #f97316;
+}
+
 /* Axis label row below chart */
 .ichart__axis-labels {
     display: flex;

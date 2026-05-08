@@ -1796,6 +1796,24 @@ function OutlierSeverityViz({ col, pValue, significant, aiAssisted = false }) {
     const plotWidth = width - leftPad - rightPad;
     const xFor = (value) => leftPad + ((value - min) / Math.max(0.0001, max - min)) * plotWidth;
     const hasPValue = Number.isFinite(Number(pValue)) && !aiAssisted;
+    const suspectX = suspectPoint != null ? xFor(suspectPoint) : null;
+    const suspectLabel = suspectPoint != null
+        ? `suspected outlier${allOutliers.length > 1 ? 's' : ''}`
+        : '';
+    const suspectAnchor = suspectX == null
+        ? 'middle'
+        : suspectX < leftPad + 54
+            ? 'start'
+            : suspectX > width - rightPad - 54
+                ? 'end'
+                : 'middle';
+    const suspectLabelX = suspectX == null
+        ? null
+        : suspectAnchor === 'start'
+            ? Math.max(leftPad + 4, suspectX)
+            : suspectAnchor === 'end'
+                ? Math.min(width - rightPad - 4, suspectX)
+                : suspectX;
 
     return (
         <SummaryChartFrame
@@ -1806,7 +1824,7 @@ function OutlierSeverityViz({ col, pValue, significant, aiAssisted = false }) {
                         title="Outlier p-value"
                         value={hasPValue ? formatPValueLabel(pValue) : 'AI estimate'}
                         tone={significant ? 'sig' : 'ns'}
-                        subtitle={hasPValue ? 'highlighted point is the suspected outlier' : 'no computed p-value for this outlier check'}
+                        subtitle={hasPValue ? 'highlighted point marks the outlier region' : 'no computed p-value for this outlier check'}
                     />
                 </div>
             )}
@@ -1836,12 +1854,12 @@ function OutlierSeverityViz({ col, pValue, significant, aiAssisted = false }) {
                 />
             ))}
             {suspectPoint != null ? (
-                <circle cx={xFor(suspectPoint)} cy={axisY - 22} r="3.6" fill="rgba(239,68,68,0.92)" />
+                <circle cx={suspectX} cy={axisY - 22} r="3.6" fill="rgba(239,68,68,0.92)" />
             ) : null}
             <text x={leftPad} y={14} textAnchor="start" className="rchart__axis-text">{col?.name ?? 'value'}</text>
             {suspectPoint != null ? (
-                <text x={xFor(suspectPoint)} y={18} textAnchor="middle" className="rchart__annotation-text">
-                    suspected outlier {formatNumber(suspectPoint, 1)}
+                <text x={suspectLabelX} y={18} textAnchor={suspectAnchor} className="rchart__annotation-text">
+                    {suspectLabel}
                 </text>
             ) : null}
             <text x={xFor(whiskerLow)} y={height - 20} textAnchor="middle" className="rchart__axis-text">lower whisker</text>
@@ -1851,9 +1869,9 @@ function OutlierSeverityViz({ col, pValue, significant, aiAssisted = false }) {
             <text x={width / 2} y={height - 1} textAnchor="middle" className="rchart__axis-text">value axis</text>
         </svg>
         <div className="rchart__mini-legend">
-            <span><span className="rchart__swatch rchart__swatch--flagged" />red point = suspected outlier</span>
+            <span><span className="rchart__swatch rchart__swatch--flagged" />red point{allOutliers.length > 1 ? 's' : ''} = suspected outlier{allOutliers.length > 1 ? 's' : ''}</span>
             <span><span className="rchart__swatch rchart__swatch--a" />purple box = middle 50% of values</span>
-            <span>{suspectPoint != null ? 'gray points are a sample of the rest of the distribution; the red point is the most extreme value.' : 'No point sits beyond the whisker cutoffs, so this sample does not show a clear single-point outlier.'}</span>
+            <span>{suspectPoint != null ? `gray points are a sample of the rest of the distribution; ${allOutliers.length > 1 ? 'the red points mark values beyond the whisker cutoffs.' : 'the red point marks a value beyond the whisker cutoffs.'}` : 'No point sits beyond the whisker cutoffs, so this sample does not show a clear single-point outlier.'}</span>
         </div>
         </SummaryChartFrame>
     );
