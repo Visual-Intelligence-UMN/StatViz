@@ -3,6 +3,7 @@
 StatViz is a browser-based, node-driven data analysis workspace for CSV datasets. It helps users move from raw tabular data to insights, hypotheses, statistical tests, and interpretable result nodes on an interactive canvas.
 
 > Capstone Project — Dipan Bag, Spring 2026
+> Advisor - Qianwen Wang
 
 ---
 
